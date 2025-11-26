@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global Trade Master: Cross-Platform Edition</title>
+    <title>Global Trade Master: Mobile Optimized</title>
     <style>
         body {
             margin: 0;
@@ -14,6 +14,7 @@
             touch-action: none; /* CRITICO: Prevenir zoom/scroll en móvil */
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
         canvas {
             display: block;
@@ -27,46 +28,50 @@
 
 <script>
 /**
- * GLOBAL TRADE MASTER WEB - CROSS-PLATFORM EDITION (4.0)
- * ------------------------------------------------------
- * - RESPONSIVE SCALING: Adapts to any screen size/DPR.
- * - MOBILE CONTROLS: "Follow Finger" logic for smooth touch play.
- * - ADAPTIVE UI: Fonts and buttons scale with screen width.
+ * GLOBAL TRADE MASTER WEB - MOBILE OPTIMIZED (4.1)
+ * ------------------------------------------------
+ * - AGGRESSIVE MOBILE SCALING: Zoomed in for portrait mode.
+ * - LARGER HITBOXES: Better touch detection.
+ * - MINIMUM FONT SIZES: Text is always readable.
  */
 
 (function() { 
 
-    // --- LIMPIEZA ---
     if (window.gameLoopId) cancelAnimationFrame(window.gameLoopId);
     
     // --- 1. CONFIGURACIÓN & ESCALADO ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Variables de Pantalla
     let ANCHO = window.innerWidth;
     let ALTO = window.innerHeight;
-    let SCALE = 1; // Factor de escala global
-    const REF_WIDTH = 1280; // Resolución base de diseño
+    let SCALE = 1; 
+    const REF_WIDTH_DESKTOP = 1280; 
+    const REF_WIDTH_MOBILE = 550; // Referencia más pequeña para que todo se vea GRANDE en móvil
 
-    // Función de redimensionado inteligente
     const onResize = () => {
         ANCHO = window.innerWidth;
         ALTO = window.innerHeight;
         canvas.width = ANCHO;
         canvas.height = ALTO;
         
-        // Calculamos escala basada en el ancho, pero limitando para pantallas ultra-wide o ultra-tall
-        // En móviles (portrait), usamos el ancho como referencia principal para que los elementos sean legibles
-        SCALE = Math.min(ANCHO / REF_WIDTH, 1.5); 
-        if (ANCHO < 600) SCALE = ANCHO / 800; // Ajuste para móviles vertical
+        const isPortrait = ALTO > ANCHO;
+        
+        if (ANCHO < 800 || isPortrait) {
+            // Modo Móvil/Vertical: Usamos una base de 550px para que los elementos sean grandes
+            SCALE = ANCHO / REF_WIDTH_MOBILE;
+        } else {
+            // Modo Escritorio: Usamos base 1280px estándar
+            SCALE = Math.min(ANCHO / REF_WIDTH_DESKTOP, 1.5);
+        }
     };
     window.addEventListener('resize', onResize);
-    onResize(); // Init
+    onResize(); 
 
     // Helpers de escalado
-    const s = (val) => val * SCALE; // Escalar valor
-    const fs = (size) => `bold ${Math.max(12, size * SCALE)}px 'Segoe UI', Arial`; // Fuente escalada
+    const s = (val) => val * SCALE; 
+    // Fuente escalada con tamaño mínimo de 14px para legibilidad
+    const fs = (size) => `bold ${Math.max(14, size * SCALE)}px 'Segoe UI', Arial`; 
 
     // --- 2. SISTEMA DE AUDIO ---
     const AudioSys = {
@@ -236,7 +241,7 @@
     // --- INPUTS RESPONSIVOS ---
     const keys = { ArrowLeft: false, ArrowRight: false };
     let touchX = null; 
-    let isTouching = false; // Nuevo: saber si está arrastrando
+    let isTouching = false; 
 
     function tryInitAudio() {
         if (!AudioSys.initialized) AudioSys.init();
@@ -256,9 +261,9 @@
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    // CONTROL TÁCTIL MEJORADO: FOLLOW FINGER
+    // CONTROL TÁCTIL MEJORADO
     const handleTouchStart = (e) => {
-        e.preventDefault(); // IMPORTANTE: Prevenir scroll
+        e.preventDefault(); 
         tryInitAudio();
         const t = e.touches[0];
         checkUIClicks(t.clientX, t.clientY);
@@ -275,7 +280,6 @@
         touchX = null; 
     };
     
-    // Mouse Support (para PC sin teclado)
     const handleMouseDown = (e) => {
         tryInitAudio();
         checkUIClicks(e.clientX, e.clientY);
@@ -298,18 +302,19 @@
     window.addEventListener('mouseup', handleMouseUp);
 
     function checkUIClicks(x, y) {
-        // Mute (Top Right)
-        if (x > ANCHO - s(80) && y < s(80)) { AudioSys.toggleMute(); return; }
+        // Mute (Top Right) - Zona aumentada
+        if (x > ANCHO - s(100) && y < s(100)) { AudioSys.toggleMute(); return; }
 
         if (state === "MENU") {
             const btnY = ALTO * 0.6; const btnH = s(80);
             if (y > btnY && y < btnY + btnH) {
-                if (x > ANCHO/2 - s(320) && x < ANCHO/2 - s(20)) startGame("bienes");
-                if (x > ANCHO/2 + s(20) && x < ANCHO/2 + s(320)) startGame("servicios");
+                // Zona aumentada para botones de menú
+                if (x > ANCHO/2 - s(320) && x < ANCHO/2 - s(10)) startGame("bienes");
+                if (x > ANCHO/2 + s(10) && x < ANCHO/2 + s(320)) startGame("servicios");
             }
         } else if (state === "PLAY") {
-            // Pause (Top Center)
-            if (x > ANCHO/2 - s(60) && x < ANCHO/2 + s(60) && y < s(60)) state = "PAUSED";
+            // Pause (Top Center) - Zona aumentada
+            if (x > ANCHO/2 - s(80) && x < ANCHO/2 + s(80) && y < s(80)) state = "PAUSED";
         } else if (state === "PAUSED") {
             const btnW = s(300); const btnH = s(50);
             // Resume
@@ -468,28 +473,17 @@
             this.hasShield = false;
         }
         update() {
-            // Teclado
             let dir = 0;
             if (keys.ArrowLeft) dir = -1; if (keys.ArrowRight) dir = 1;
-            
-            // Movimiento híbrido:
-            // Si hay teclado, usamos velocidad constante.
-            // Si hay touch, usamos posición absoluta (más preciso en móvil).
             
             if (dir !== 0) {
                 this.targetX += dir * s(12);
             } else if (isTouching && touchX !== null) {
-                // FOLLOW FINGER MODE
-                // Si estamos en pausa (centro arriba), no mover
-                if (!(touchX > ANCHO/2 - s(60) && touchX < ANCHO/2 + s(60) && state === "PLAY" && false)) {
-                     // Interpolamos targetX hacia touchX
-                     this.targetX = touchX;
-                }
+                this.targetX = touchX;
             }
             
             this.targetX = Math.max(s(50), Math.min(ANCHO - s(50), this.targetX));
             
-            // Suavizado
             const diff = this.targetX - this.x; 
             this.x += diff * 0.15; 
             
@@ -650,8 +644,6 @@
                         const dataList = CONOCIMIENTO[mode][dbKey];
                         const data = dataList[Math.floor(Math.random() * dataList.length)];
                         cardInfo = { t: data.t, d: data.d, ok: true };
-                        // En móvil a veces es molesto parar a cada rato. Haremos que INFO sea menos intrusivo o solo en hit?
-                        // Por ahora igual:
                         state = "INFO";
                     } else {
                         if (player.hasShield) {
@@ -706,7 +698,6 @@
 
             const btnY = ALTO * 0.6; const btnW = s(300); const btnH = s(80); const gap = s(40);
             
-            // Botones responsivos (verticales en movil si es muy estrecho, horizontales en PC)
             let bx1, bx2, by1, by2;
             if (ANCHO > 600) {
                  bx1 = ANCHO/2 - btnW - gap/2; by1 = btnY;
@@ -773,7 +764,6 @@
             if (state === "INFO") {
                 ctx.fillStyle = "rgba(10, 15, 30, 0.9)"; ctx.fillRect(0, 0, ANCHO, ALTO);
                 const cw = Math.min(s(800), ANCHO - s(40)); 
-                // Ajustar altura tarjeta si el texto es largo o pantalla pequeña
                 const ch = s(450); 
                 const cx = (ANCHO - cw) / 2; const cy = (ALTO - ch) / 2;
                 
@@ -782,13 +772,11 @@
                 drawRoundedRect(cx, cy, cw, s(80), s(20), col); ctx.fillRect(cx, cy+s(40), cw, s(40)); 
                 
                 ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = fs(30);
-                // Texto wrap para titulo
                 ctx.fillText(cardInfo.ok ? "¡CONOCIMIENTO!" : "¡RIESGO!", ANCHO/2, cy + s(50));
                 
                 ctx.fillStyle = C.TEXT_DARK; ctx.font = fs(35); ctx.fillText(cardInfo.t, ANCHO/2, cy + s(130));
                 ctx.fillStyle = "#50505A"; ctx.font = fs(24);
                 
-                // Word Wrap Manual
                 const words = cardInfo.d.split(" "); let line = ""; let ly = cy + s(190);
                 for(let n = 0; n < words.length; n++) {
                     const testLine = line + words[n] + " "; const metrics = ctx.measureText(testLine);
