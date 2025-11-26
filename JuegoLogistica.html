@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Global Trade Master: Ultimate Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #05050a;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            touch-action: none; /* Prevenir zoom en móvil */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+/**
+ * GLOBAL TRADE MASTER WEB - ULTIMATE EDITION (3.0)
+ * ------------------------------------------------
+ * - COMBO SYSTEM (Multipliers)
+ * - POWER-UPS (Shield, Slow Motion)
+ * - 3-LAYER PARALLAX BACKGROUND
+ * - ADVANCED PARTICLE EFFECTS
+ */
+
+(function() { 
+
+    // --- LIMPIEZA ---
+    if (window.gameLoopId) cancelAnimationFrame(window.gameLoopId);
+    
+    // --- 1. CONFIGURACIÓN ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let ANCHO = window.innerWidth;
+    let ALTO = window.innerHeight;
+    canvas.width = ANCHO;
+    canvas.height = ALTO;
+
+    const onResize = () => {
+        ANCHO = window.innerWidth;
+        ALTO = window.innerHeight;
+        canvas.width = ANCHO;
+        canvas.height = ALTO;
+    };
+    window.addEventListener('resize', onResize);
+
+    // --- 2. SISTEMA DE AUDIO ---
+    const AudioSys = {
+        ctx: null, masterGain: null, buffers: {}, musicSource: null,
+        initialized: false, muted: false,
+
+        init: function() {
+            if (this.initialized) return;
+            const AC = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AC();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.5; 
+            this.masterGain.connect(this.ctx.destination);
+
+            this.buffers.music = this.genMusicBuffer();
+            this.buffers.win = this.genWinBuffer();
+            this.buffers.lose = this.genLoseBuffer();
+            this.buffers.powerup = this.genPowerUpBuffer(); // Nuevo sonido
+
+            this.initialized = true;
+            if(!this.muted) this.playMusic();
+        },
+
+        toggleMute: function() {
+            this.muted = !this.muted;
+            if (this.ctx) {
+                const target = this.muted ? 0 : 0.5;
+                this.masterGain.gain.linearRampToValueAtTime(target, this.ctx.currentTime + 0.1);
+                if (!this.muted && this.ctx.state === 'suspended') this.ctx.resume();
+                if (!this.muted && !this.musicSource) this.playMusic();
+            }
+        },
+
+        genMusicBuffer: function() {
+            const sr = this.ctx.sampleRate; const seconds = 16;
+            const buffer = this.ctx.createBuffer(1, sr * seconds, sr);
+            const data = buffer.getChannelData(0);
+            const notes = [261.63, 311.13, 349.23, 392.00, 466.16];
+            for (let i = 0; i < sr * seconds; i++) {
+                let t = i / sr; let beat = Math.floor(t * 4);
+                let bassFreq = (Math.floor(beat / 4) % 2 === 0) ? 65.41 : 58.27;
+                let bass = Math.sin(2 * Math.PI * bassFreq * t) * 0.5 * (1 - ((t*4) % 1));
+                let noteIndex = (beat % 5 + Math.floor(beat/8)) % notes.length;
+                let note = notes[noteIndex];
+                let melody = Math.sin(2 * Math.PI * note * t) * 0.35 * Math.exp(-5 * ((t*4) % 1));
+                let hat = (i % Math.floor(sr/8) < 500) ? (Math.random() * 0.2 - 0.1) : 0;
+                data[i] = (bass + melody + hat);
+            }
+            return buffer;
+        },
+
+        genWinBuffer: function() {
+            const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.5, sr);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i < sr * 0.5; i++) {
+                let t = i / sr;
+                let val = Math.sin(2 * Math.PI * 880 * t) + 0.5 * Math.sin(2 * Math.PI * 1760 * t);
+                data[i] = val * 0.5 * (1 - t/0.5);
+            }
+            return buffer;
+        },
+
+        genLoseBuffer: function() {
+            const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.4, sr);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i < sr * 0.4; i++) {
+                let t = i / sr;
+                let val = (Math.sin(2 * Math.PI * 150 * t) > 0) ? 1.0 : -1.0;
+                data[i] = val * 0.3 * (1 - t/0.4);
+            }
+            return buffer;
+        },
+
+        genPowerUpBuffer: function() {
+            const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.6, sr);
+            const data = buffer.getChannelData(0);
+            for(let i=0; i < sr * 0.6; i++) {
+                let t = i / sr;
+                // Sonido ascendente mágico
+                let freq = 400 + (t * 1000); 
+                let val = Math.sin(2 * Math.PI * freq * t);
+                data[i] = val * 0.3 * (1 - t/0.6);
+            }
+            return buffer;
+        },
+
+        playMusic: function() {
+            if (!this.ctx || this.muted) return;
+            if (this.musicSource) this.musicSource.stop();
+            this.musicSource = this.ctx.createBufferSource();
+            this.musicSource.buffer = this.buffers.music;
+            this.musicSource.loop = true;
+            this.musicSource.connect(this.masterGain);
+            this.musicSource.start(0);
+        },
+
+        playSfx: function(type) {
+            if (!this.ctx || this.muted || !this.buffers[type]) return;
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.buffers[type];
+            src.connect(this.masterGain);
+            src.start(0);
+        }
+    };
+
+    // --- 3. DATOS ---
+    const C = {
+        SEA_TOP: [0, 100, 160], SEA_BOT: [10, 20, 40],
+        CYBER_TOP: [20, 0, 40], CYBER_BOT: [5, 5, 10],
+        WHITE: '#FFFFFF', ACCENT_BLUE: '#00BEFF', ACCENT_GREEN: '#2ECC71',
+        ACCENT_RED: '#E74C3C', ACCENT_GOLD: '#F1C40F', TEXT_DARK: '#1E2832',
+        SHIELD: '#00FFFF', SLOW: '#9B59B6'
+    };
+
+    const CONOCIMIENTO = {
+        "bienes": {
+            "ok": [
+                {t:"INCOTERM DDP", d:"Entrega máxima. Vendedor asume todos los riesgos y costos hasta destino."},
+                {t:"CARTA DE CRÉDITO", d:"Seguridad bancaria. El cobro está garantizado contra documentos conformes."},
+                {t:"CONVENCIÓN VIENA", d:"Marco jurídico neutral. Evita conflictos de leyes en contratos internacionales."}
+            ],
+            "fail": [
+                {t:"DEMURRAGE", d:"Costos extra. Multa naviera por no liberar el contenedor a tiempo."},
+                {t:"FUERZA MAYOR", d:"Evento imprevisible. Sin cláusula específica, el contrato queda en el limbo."},
+                {t:"ADUANA BLOQUEADA", d:"Falta de Certificado de Origen. La mercancía no puede nacionalizarse."}
+            ]
+        },
+        "servicios": {
+            "ok": [
+                {t:"ACUERDO AGCS", d:"Marco de la OMC. Reglas claras para el comercio internacional de servicios."},
+                {t:"MODO 1: DIGITAL", d:"Suministro transfronterizo. El servicio viaja por la red, nadie se mueve."},
+                {t:"PROPIEDAD INTELECTUAL", d:"Protección de activos intangibles (Marcas/Patentes) en el extranjero."}
+            ],
+            "fail": [
+                {t:"DOBLE TRIBUTACIÓN", d:"Ineficiencia fiscal. Pagas impuestos en dos países por el mismo ingreso."},
+                {t:"BRECHA DE DATOS", d:"Fallo de ciberseguridad. Robo de información confidencial del cliente."},
+                {t:"NO HOMOLOGACIÓN", d:"Barrera técnica. Tu licencia profesional no es válida en el país destino."}
+            ]
+        }
+    };
+
+    // --- VARIABLES DE ESTADO ---
+    let state = "MENU"; 
+    let mode = "bienes"; 
+    let player; 
+    let items = []; 
+    let powerups = []; // NUEVO
+    let particles = []; 
+    let bgElements = []; // Ahora tiene capas
+    let score = 0; 
+    let highScore = localStorage.getItem('gtm_highscore') || 0;
+    let health = 100; 
+    let cardInfo = null; 
+    let lastSpawnTime = 0;
+    
+    // Game Juice
+    let shakeStrength = 0;
+    let damageFlash = 0;
+    let scoreScale = 1.0;
+    
+    // Ultimate Features
+    let combo = 0;
+    let comboTimer = 0; // Visual pop for combo
+    let slowMotionTimer = 0; // Ticks
+    let timeScale = 1.0; // 1.0 = normal, 0.3 = slow
+    
+    // Difficulty
+    let difficultyLevel = 1;
+    let spawnRate = 800; 
+    let itemBaseSpeed = 5;
+
+    // --- INPUTS ---
+    const keys = { ArrowLeft: false, ArrowRight: false };
+    let touchX = null; 
+
+    function tryInitAudio() {
+        if (!AudioSys.initialized) AudioSys.init();
+        else if (AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+    }
+
+    const onKeyDown = (e) => {
+        tryInitAudio();
+        if(keys.hasOwnProperty(e.code)) keys[e.code] = true;
+        if(e.code === 'Space') handleInputConfirm();
+        if(e.code === 'Escape') togglePause();
+    };
+    const onKeyUp = (e) => {
+        if(keys.hasOwnProperty(e.code)) keys[e.code] = false;
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    const handleTouchStart = (e) => {
+        tryInitAudio();
+        const t = e.touches[0];
+        checkUIClicks(t.clientX, t.clientY);
+        touchX = t.clientX;
+    };
+    const handleTouchMove = (e) => { touchX = e.touches[0].clientX; };
+    const handleTouchEnd = () => { touchX = null; };
+    const handleMouseDown = (e) => {
+        tryInitAudio();
+        checkUIClicks(e.clientX, e.clientY);
+        touchX = e.clientX;
+    };
+    const handleMouseUp = () => { touchX = null; };
+
+    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('touchmove', handleTouchMove);
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    function checkUIClicks(x, y) {
+        if (x > ANCHO - 60 && y < 60) { AudioSys.toggleMute(); return; }
+
+        if (state === "MENU") {
+            const btnY = ALTO * 0.6; const btnH = 80;
+            if (y > btnY && y < btnY + btnH) {
+                if (x > ANCHO/2 - 320 && x < ANCHO/2 - 20) startGame("bienes");
+                if (x > ANCHO/2 + 20 && x < ANCHO/2 + 320) startGame("servicios");
+            }
+        } else if (state === "PLAY") {
+            if (x > ANCHO/2 - 60 && x < ANCHO/2 + 60 && y < 60) state = "PAUSED";
+        } else if (state === "PAUSED") {
+            if (x > ANCHO/2 - 150 && x < ANCHO/2 + 150 && y > ALTO/2 - 60 && y < ALTO/2 - 10) state = "PLAY";
+            if (x > ANCHO/2 - 150 && x < ANCHO/2 + 150 && y > ALTO/2 + 20 && y < ALTO/2 + 70) state = "MENU";
+        } else if (state === "INFO" || state === "GAMEOVER") {
+            handleInputConfirm();
+        }
+    }
+
+    function togglePause() {
+        if (state === "PLAY") state = "PAUSED";
+        else if (state === "PAUSED") state = "PLAY";
+    }
+
+    function handleInputConfirm() {
+        if (state === "INFO") state = "PLAY";
+        else if (state === "GAMEOVER") state = "MENU";
+    }
+
+    // --- UTILS ---
+    function randomRange(min, max) { return Math.random() * (max - min) + min; }
+    function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
+    function drawRoundedRect(x, y, w, h, r, color) {
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+        else ctx.rect(x,y,w,h); 
+        ctx.fillStyle = color; ctx.fill();
+    }
+    function drawGradient(topCol, botCol) {
+        const grad = ctx.createLinearGradient(0, 0, 0, ALTO);
+        grad.addColorStop(0, `rgb(${topCol[0]}, ${topCol[1]}, ${topCol[2]})`);
+        grad.addColorStop(1, `rgb(${botCol[0]}, ${botCol[1]}, ${botCol[2]})`);
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, ANCHO, ALTO);
+    }
+
+    // --- GAME ENTITIES ---
+    class Particle {
+        constructor(x, y, color, isTrail) {
+            this.x = x; this.y = y; this.color = color; this.isTrail = isTrail;
+            this.size = randomInt(3, 8); 
+            this.life = isTrail ? 30 : 50; 
+            this.maxLife = this.life;
+            if (isTrail) { this.vx = randomRange(-0.5, 0.5); this.vy = 2; } 
+            else { 
+                // Explosion effect
+                this.vx = randomRange(-5, 5); 
+                this.vy = randomRange(-5, 5); 
+                this.gravity = 0.2;
+            }
+        }
+        update() { 
+            this.x += this.vx * timeScale; // Affected by slow motion
+            this.y += this.vy * timeScale; 
+            if(!this.isTrail) this.vy += this.gravity * timeScale;
+            this.life--; 
+        }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.life / this.maxLife;
+            ctx.fillStyle = this.color;
+            if (this.isTrail) { ctx.beginPath(); ctx.arc(this.x, this.y, this.size/2, 0, Math.PI * 2); ctx.fill(); } 
+            else { ctx.fillRect(this.x, this.y, this.size, this.size); }
+            ctx.restore();
+        }
+    }
+
+    class FloatingText {
+        constructor(x, y, text, color, size = 26) {
+            this.x = x; this.y = y; this.text = text; this.color = color;
+            this.life = 60; this.maxLife = 60; this.size = size;
+        }
+        update() { this.y -= 2 * timeScale; this.life--; }
+        draw() {
+            ctx.save(); ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+            ctx.fillStyle = this.color; ctx.font = `bold ${this.size}px 'Segoe UI', Arial`; ctx.textAlign = "center";
+            ctx.shadowColor = "black"; ctx.shadowBlur = 4;
+            ctx.fillText(this.text, this.x, this.y); ctx.restore();
+        }
+    }
+
+    // Parallax Background
+    class BackgroundElement {
+        constructor(mode, layer) { 
+            this.mode = mode; 
+            this.layer = layer; // 0=far (slow), 1=mid, 2=close (fast)
+            this.reset(); 
+            this.y = randomInt(0, ALTO); 
+        }
+        reset() {
+            this.x = randomInt(0, ANCHO); this.y = -50;
+            // Capas de velocidad
+            const baseSpeed = (this.layer + 1) * 0.5; 
+            this.speed = randomRange(baseSpeed, baseSpeed + 0.5); 
+            this.size = randomInt(10 + (this.layer*10), 30 + (this.layer*20));
+            this.alpha = randomRange(0.1, 0.3 + (this.layer*0.1));
+            this.text = Math.random() > 0.5 ? "1" : "0";
+        }
+        update() { 
+            this.y += this.speed * timeScale; 
+            if (this.y > ALTO) this.reset(); 
+        }
+        draw() {
+            ctx.save(); ctx.globalAlpha = this.alpha;
+            if (this.mode === 'bienes') {
+                ctx.fillStyle = "white"; ctx.beginPath();
+                ctx.ellipse(this.x, this.y, this.size, this.size/2, 0, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.fillStyle = this.layer === 2 ? "#00FFC8" : "#005544"; 
+                ctx.font = `${14 + (this.layer*4)}px monospace`; 
+                ctx.fillText(this.text, this.x, this.y);
+            }
+            ctx.restore();
+        }
+    }
+
+    // NUEVO: PowerUps
+    class PowerUp {
+        constructor() {
+            this.type = Math.random() > 0.5 ? 'shield' : 'slow';
+            this.x = randomInt(50, ANCHO - 50);
+            this.y = -60;
+            this.speed = 4;
+            this.w = 50; this.h = 50;
+            this.angle = 0;
+        }
+        update() {
+            this.y += this.speed * timeScale;
+            this.angle += 0.05;
+        }
+        draw() {
+            ctx.save(); ctx.translate(this.x, this.y);
+            // Glow
+            ctx.shadowColor = this.type === 'shield' ? C.SHIELD : C.SLOW;
+            ctx.shadowBlur = 20;
+            // Draw Icon
+            ctx.fillStyle = this.type === 'shield' ? C.SHIELD : C.SLOW;
+            
+            // Animación de flotación
+            const float = Math.sin(Date.now()*0.005)*5;
+            ctx.translate(0, float);
+            
+            // Hexagon shape
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                ctx.lineTo(25 * Math.cos(this.angle + i * Math.PI / 3), 25 * Math.sin(this.angle + i * Math.PI / 3));
+            }
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#000";
+            ctx.font = "20px Arial"; ctx.textAlign = "center";
+            ctx.fillText(this.type === 'shield' ? "🛡️" : "⏳", 0, 8);
+            ctx.restore();
+        }
+        getRect() { return {x: this.x-25, y: this.y-25, w: 50, h: 50}; }
+    }
+
+    class Player {
+        constructor(mode) {
+            this.mode = mode; this.w = 80; this.h = 100;
+            this.x = ANCHO / 2; this.y = ALTO - 150; this.targetX = this.x;
+            this.angle = 0; this.floatTimer = 0; this.offsetY = 0;
+            
+            // Status effects
+            this.hasShield = false;
+        }
+        update() {
+            let dir = 0;
+            if (keys.ArrowLeft) dir = -1; if (keys.ArrowRight) dir = 1;
+            if (touchX !== null) {
+                if (touchX < ANCHO/2) dir = -1; else dir = 1;
+                if (touchX > ANCHO/2 - 50 && touchX < ANCHO/2 + 50 && state === "PLAY") dir = 0;
+            }
+            
+            // Velocidad del jugador NO afectada por slow motion
+            this.targetX += dir * 12; 
+            this.targetX = Math.max(50, Math.min(ANCHO - 50, this.targetX));
+            const diff = this.targetX - this.x; 
+            this.x += diff * 0.2; 
+            
+            this.angle += ((-diff * 0.05 * (Math.PI / 180)) - this.angle) * 0.1;
+            this.floatTimer += 0.1; this.offsetY = Math.sin(this.floatTimer) * 5;
+        }
+        draw() {
+            ctx.save(); ctx.translate(this.x, this.y + this.offsetY); 
+            
+            // Shield Effect
+            if (this.hasShield) {
+                ctx.save();
+                ctx.strokeStyle = C.SHIELD;
+                ctx.lineWidth = 3;
+                ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.01) * 0.2;
+                ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = "rgba(0, 255, 255, 0.1)"; ctx.fill();
+                ctx.restore();
+            }
+
+            ctx.rotate(this.angle);
+            if (this.mode === 'bienes') {
+                ctx.fillStyle = C.WHITE; ctx.beginPath();
+                ctx.moveTo(-30, 0); ctx.lineTo(30, 0); ctx.lineTo(20, 40); ctx.lineTo(-20, 40); ctx.fill();
+                ctx.fillStyle = "#3498DB"; ctx.fillRect(-25, 30, 50, 5);
+                [C.ACCENT_RED, C.ACCENT_GOLD, C.ACCENT_GREEN].forEach((c, i) => {
+                    ctx.fillStyle = c; ctx.fillRect(-25 + (i*18), -25, 14, 25);
+                    ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fillRect(-25 + (i*18) + 2, -23, 10, 21);
+                });
+            } else {
+                drawRoundedRect(-25, -20, 50, 40, 10, C.ACCENT_BLUE);
+                ctx.strokeStyle = C.WHITE; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -10, 15, 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = C.WHITE; ctx.beginPath(); ctx.arc(0, -10, 12, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = C.ACCENT_BLUE; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(0, -10, 6, -Math.PI/2 - 0.5, -Math.PI/2 + 0.5); ctx.stroke();
+            }
+            ctx.restore();
+        }
+        getRect() { return { x: this.x - this.w/2, y: this.y + this.offsetY - this.h/2, w: this.w, h: this.h }; }
+    }
+
+    class Item {
+        constructor(mode, speedMult) {
+            this.mode = mode; this.isGood = Math.random() > 0.4;
+            this.w = 60; this.h = 60; 
+            this.x = randomInt(50, ANCHO - 50); this.y = -70; 
+            this.speed = itemBaseSpeed * speedMult;
+        }
+        update() { 
+            this.y += this.speed * timeScale; // Affected by slow motion
+            this.x += Math.sin(Date.now() * 0.005) * 1.5; 
+        }
+        draw() {
+            ctx.save(); ctx.translate(this.x, this.y);
+            ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(0, 35, 20, 5, 0, 0, Math.PI*2); ctx.fill();
+            if (this.isGood) {
+                drawRoundedRect(-20, -25, 40, 50, 5, "#ECF0F1");
+                ctx.fillStyle = C.ACCENT_GREEN; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = C.WHITE; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("$", 0, 7);
+            } else {
+                ctx.fillStyle = C.ACCENT_RED; ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(30, 25); ctx.lineTo(-30, 25); ctx.fill();
+                ctx.fillStyle = C.WHITE; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("!", 0, 15);
+            }
+            ctx.restore();
+        }
+        getRect() { return { x: this.x - this.w/2, y: this.y - this.h/2, w: this.w, h: this.h }; }
+    }
+
+    // --- LOGIC ---
+
+    // Initial background setup
+    for(let i=0; i<30; i++) bgElements.push(new BackgroundElement('bienes', i%3));
+
+    function startGame(selectedMode) {
+        mode = selectedMode; state = "PLAY"; score = 0; health = 100;
+        player = new Player(mode); 
+        items = []; powerups = []; particles = []; 
+        bgElements = [];
+        for(let i=0; i<30; i++) bgElements.push(new BackgroundElement(mode, i%3));
+        
+        difficultyLevel = 1; spawnRate = 800; itemBaseSpeed = 5;
+        combo = 0; comboTimer = 0; slowMotionTimer = 0; timeScale = 1.0;
+        
+        tryInitAudio();
+    }
+
+    function triggerShake(strength) { shakeStrength = strength; }
+    function triggerDamageFlash() { damageFlash = 1.0; }
+
+    function updateDifficulty() {
+        let newLevel = Math.floor(score / 5000) + 1;
+        if (newLevel > difficultyLevel) {
+            difficultyLevel = newLevel;
+            spawnRate = Math.max(300, 800 - (difficultyLevel * 50)); 
+            itemBaseSpeed = Math.min(12, 5 + (difficultyLevel * 0.5));
+            particles.push(new FloatingText(ANCHO/2, ALTO/2, "¡LEVEL UP!", "#FFFFFF", 50));
+        }
+    }
+
+    function checkCollision(r1, r2) {
+        return (r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
+    }
+
+    function saveHighScore() {
+        if (score > highScore) { highScore = score; localStorage.setItem('gtm_highscore', highScore); }
+    }
+
+    function activateSlowMotion() {
+        slowMotionTimer = 300; // 5 seconds at 60fps
+        timeScale = 0.3;
+    }
+
+    function gameLoop(timestamp) {
+        // --- LOGIC ---
+        
+        // Slow Motion Logic
+        if (slowMotionTimer > 0) {
+            slowMotionTimer--;
+            if (slowMotionTimer <= 0) timeScale = 1.0;
+        }
+
+        bgElements.forEach(b => b.update());
+
+        if (state === "PLAY") {
+            player.update();
+            updateDifficulty();
+
+            // Spawn Items
+            if (timestamp - lastSpawnTime > spawnRate / timeScale) { 
+                items.push(new Item(mode, 1 + (difficultyLevel * 0.05))); 
+                // Chance to spawn powerup (5%)
+                if (Math.random() < 0.05) powerups.push(new PowerUp());
+                lastSpawnTime = timestamp; 
+            }
+            
+            // Trail
+            if (Math.random() > 0.6) {
+                const col = mode === 'bienes' ? C.WHITE : C.ACCENT_BLUE;
+                particles.push(new Particle(player.x, player.y + 35, col, true));
+            }
+
+            // PowerUps Collision
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                let p = powerups[i];
+                p.update();
+                if (checkCollision(player.getRect(), p.getRect())) {
+                    if (p.type === 'shield') {
+                        player.hasShield = true;
+                        particles.push(new FloatingText(player.x, player.y - 80, "¡ESCUDO!", C.SHIELD));
+                    } else {
+                        activateSlowMotion();
+                        particles.push(new FloatingText(player.x, player.y - 80, "¡SLOW MOTION!", C.SLOW));
+                    }
+                    AudioSys.playSfx('powerup');
+                    powerups.splice(i, 1);
+                } else if (p.y > ALTO) {
+                    powerups.splice(i, 1);
+                }
+            }
+
+            // Items Collision
+            for (let i = items.length - 1; i >= 0; i--) {
+                let item = items[i]; item.update();
+                if (checkCollision(player.getRect(), item.getRect())) {
+                    
+                    if (item.isGood) {
+                        // GOOD HIT
+                        combo++;
+                        comboTimer = 20;
+                        let multiplier = 1 + (combo * 0.1);
+                        let pts = Math.floor(2000 * multiplier);
+                        
+                        score += pts; 
+                        scoreScale = 1.5;
+                        particles.push(new FloatingText(player.x, player.y - 50, `+$${pts.toLocaleString()}`, C.ACCENT_GOLD));
+                        if(combo > 1) particles.push(new FloatingText(player.x, player.y - 80, `${combo}x COMBO`, "#FFA500", 20));
+
+                        for(let k=0; k<15; k++) particles.push(new Particle(item.x, item.y, C.ACCENT_GOLD, false));
+                        AudioSys.playSfx('win');
+                        
+                        // Show info only sometimes to keep flow
+                        const dbKey = "ok";
+                        const dataList = CONOCIMIENTO[mode][dbKey];
+                        const data = dataList[Math.floor(Math.random() * dataList.length)];
+                        cardInfo = { t: data.t, d: data.d, ok: true };
+                        state = "INFO";
+
+                    } else {
+                        // BAD HIT
+                        if (player.hasShield) {
+                            player.hasShield = false;
+                            particles.push(new FloatingText(player.x, player.y - 50, "¡BLOQUEADO!", C.SHIELD));
+                            AudioSys.playSfx('powerup'); // Shield break sound
+                        } else {
+                            health -= 25; 
+                            combo = 0; // Reset combo
+                            triggerShake(15); 
+                            triggerDamageFlash(); 
+                            for(let k=0; k<20; k++) particles.push(new Particle(item.x, item.y, C.ACCENT_RED, false));
+                            AudioSys.playSfx('lose');
+
+                            const dbKey = "fail";
+                            const dataList = CONOCIMIENTO[mode][dbKey];
+                            const data = dataList[Math.floor(Math.random() * dataList.length)];
+                            cardInfo = { t: data.t, d: data.d, ok: false };
+                            state = "INFO";
+                        }
+                    }
+                    items.splice(i, 1); 
+                    
+                    if (health <= 0) {
+                        state = "GAMEOVER";
+                        saveHighScore();
+                    }
+                    continue; 
+                }
+                if (item.y > ALTO) items.splice(i, 1);
+            }
+        }
+        
+        particles.forEach((p, i) => { p.update(); if (p.life <= 0) particles.splice(i, 1); });
+        
+        // Decay effects
+        if (shakeStrength > 0) shakeStrength *= 0.9;
+        if (damageFlash > 0) damageFlash -= 0.05;
+        if (scoreScale > 1.0) scoreScale -= 0.03;
+        if (comboTimer > 0) comboTimer--;
+
+        // --- DRAWING ---
+        ctx.save();
+        
+        if (shakeStrength > 0) {
+            ctx.translate((Math.random() - 0.5) * shakeStrength, (Math.random() - 0.5) * shakeStrength);
+        }
+
+        const cols = mode === 'bienes' ? [C.SEA_TOP, C.SEA_BOT] : [C.CYBER_TOP, C.CYBER_BOT];
+        drawGradient(cols[0], cols[1]);
+        bgElements.forEach(b => b.draw());
+
+        if (state === "MENU") {
+            ctx.fillStyle = C.WHITE; ctx.font = "bold 60px 'Segoe UI', Arial"; ctx.textAlign = "center";
+            ctx.shadowColor = C.SHADOW; ctx.shadowBlur = 10;
+            ctx.fillText("GLOBAL TRADE MASTER", ANCHO/2, 150);
+            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = "30px Arial"; ctx.fillText("ULTIMATE EDITION", ANCHO/2, 190);
+            ctx.shadowBlur = 0;
+            
+            ctx.fillStyle = "#AAA"; ctx.font = "24px Arial";
+            ctx.fillText(`🏆 RÉCORD: $${parseInt(highScore).toLocaleString()}`, ANCHO/2, 250);
+
+            const btnY = ALTO * 0.6; const btnW = 300; const btnH = 80;
+            drawRoundedRect(ANCHO/2 - 320, btnY, btnW, btnH, 15, C.ACCENT_BLUE);
+            ctx.fillStyle = C.WHITE; ctx.font = "bold 30px Arial"; ctx.fillText("BIENES", ANCHO/2 - 170, btnY + 50);
+            drawRoundedRect(ANCHO/2 + 20, btnY, btnW, btnH, 15, C.ACCENT_GREEN);
+            ctx.fillStyle = C.WHITE; ctx.fillText("SERVICIOS", ANCHO/2 + 170, btnY + 50);
+            
+        } 
+        else if (state === "PLAY" || state === "INFO" || state === "PAUSED") {
+            particles.forEach(p => p.draw()); 
+            powerups.forEach(p => p.draw());
+            items.forEach(i => i.draw()); 
+            player.draw();
+
+            if (damageFlash > 0) {
+                ctx.fillStyle = `rgba(255, 0, 0, ${damageFlash * 0.3})`;
+                ctx.fillRect(0, 0, ANCHO, ALTO);
+            }
+            
+            // Slow Motion Overlay (Vignette)
+            if (timeScale < 1.0) {
+                const grad = ctx.createRadialGradient(ANCHO/2, ALTO/2, ALTO/4, ANCHO/2, ALTO/2, ALTO);
+                grad.addColorStop(0, "rgba(155, 89, 182, 0)");
+                grad.addColorStop(1, "rgba(155, 89, 182, 0.3)");
+                ctx.fillStyle = grad;
+                ctx.fillRect(0,0,ANCHO,ALTO);
+                
+                ctx.fillStyle = C.SLOW; ctx.font = "bold 20px Arial"; ctx.textAlign = "center";
+                ctx.fillText("⏳ TIEMPO RALENTIZADO", ANCHO/2, ALTO - 100);
+            }
+
+            // HUD
+            ctx.fillStyle = C.WHITE; ctx.fillRect(0, 0, ANCHO, 70);
+            ctx.fillStyle = "#DDDDDD"; ctx.fillRect(0, 68, ANCHO, 2);
+            
+            ctx.save();
+            ctx.translate(30, 45);
+            ctx.scale(scoreScale, scoreScale);
+            ctx.textAlign = "left"; ctx.font = "bold 40px 'Segoe UI', Arial"; ctx.fillStyle = C.ACCENT_GOLD;
+            ctx.fillText(`$${score.toLocaleString()}`, 0, 0);
+            ctx.restore();
+
+            // Combo Counter (Fire Effect)
+            if (combo > 1) {
+                const cSize = 30 + (comboTimer > 0 ? 10 : 0);
+                ctx.font = `bold ${cSize}px Arial`;
+                ctx.fillStyle = combo > 5 ? "#FF4500" : "#FFA500";
+                ctx.textAlign = "left";
+                ctx.fillText(`🔥 ${combo}x`, 250, 45);
+            }
+
+            const barW = 300; 
+            ctx.fillStyle = "#E6E6E6"; drawRoundedRect(ANCHO - barW - 30, 20, barW, 30, 10, "#E6E6E6");
+            if (health > 0) drawRoundedRect(ANCHO - barW - 30, 20, (health/100)*barW, 30, 10, C.ACCENT_GREEN);
+            
+            ctx.fillStyle = "#95A5A6"; ctx.font = "14px Arial"; ctx.textAlign = "right";
+            ctx.fillText(`NIVEL ${difficultyLevel}`, ANCHO - 340, 40);
+
+            const btnW = 120; const btnH = 40; const btnX = ANCHO/2 - btnW/2; const btnY = 15;
+            drawRoundedRect(btnX, btnY, btnW, btnH, 10, "#34495E");
+            ctx.fillStyle = C.WHITE; ctx.font = "bold 20px Arial"; ctx.textAlign = "center";
+            ctx.fillText("PAUSA", ANCHO/2, btnY + 28);
+
+            if (state === "INFO") {
+                ctx.fillStyle = "rgba(10, 15, 30, 0.85)"; ctx.fillRect(0, 0, ANCHO, ALTO);
+                const cw = Math.min(800, ANCHO - 40); const ch = 450; const cx = (ANCHO - cw) / 2; const cy = (ALTO - ch) / 2;
+                drawRoundedRect(cx, cy, cw, ch, 20, C.WHITE);
+                const col = cardInfo.ok ? C.ACCENT_GREEN : C.ACCENT_RED;
+                drawRoundedRect(cx, cy, cw, 80, 20, col); ctx.fillRect(cx, cy+40, cw, 40); 
+                
+                ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = "bold 30px Arial";
+                ctx.fillText(cardInfo.ok ? "¡CONOCIMIENTO ADQUIRIDO!" : "¡RIESGO OPERATIVO!", ANCHO/2, cy + 50);
+                
+                ctx.fillStyle = C.TEXT_DARK; ctx.font = "bold 35px Arial"; ctx.fillText(cardInfo.t, ANCHO/2, cy + 130);
+                ctx.fillStyle = "#50505A"; ctx.font = "24px Arial";
+                const words = cardInfo.d.split(" "); let line = ""; let ly = cy + 190;
+                for(let n = 0; n < words.length; n++) {
+                    const testLine = line + words[n] + " "; const metrics = ctx.measureText(testLine);
+                    if (metrics.width > cw - 80 && n > 0) { ctx.fillText(line, ANCHO/2, ly); line = words[n] + " "; ly += 35; } 
+                    else { line = testLine; }
+                }
+                ctx.fillText(line, ANCHO/2, ly);
+                ctx.fillStyle = col; ctx.font = "bold 20px Arial"; ctx.fillText("TOCA PARA CONTINUAR", ANCHO/2, cy + ch - 40);
+            }
+
+            if (state === "PAUSED") {
+                ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0,0,ANCHO, ALTO);
+                const pmW = 400; const pmH = 300; const pmX = (ANCHO-pmW)/2; const pmY = (ALTO-pmH)/2;
+                drawRoundedRect(pmX, pmY, pmW, pmH, 20, C.WHITE);
+                ctx.fillStyle = C.TEXT_DARK; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
+                ctx.fillText("JUEGO PAUSADO", ANCHO/2, pmY + 60);
+                drawRoundedRect(ANCHO/2 - 150, ALTO/2 - 60, 300, 50, 10, C.ACCENT_GREEN);
+                ctx.fillStyle = C.WHITE; ctx.font = "bold 24px Arial"; ctx.fillText("CONTINUAR", ANCHO/2, ALTO/2 - 27);
+                drawRoundedRect(ANCHO/2 - 150, ALTO/2 + 20, 300, 50, 10, C.ACCENT_RED);
+                ctx.fillStyle = C.WHITE; ctx.fillText("SALIR AL MENÚ", ANCHO/2, ALTO/2 + 53);
+            }
+        }
+        else if (state === "GAMEOVER") {
+            ctx.fillStyle = "rgba(0,0,0,0.9)"; ctx.fillRect(0,0, ANCHO, ALTO);
+            ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = "bold 60px Arial";
+            ctx.fillText("FIN DE PARTIDA", ANCHO/2, ALTO/2 - 50);
+            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = "40px Arial"; ctx.fillText(`Total: $${score.toLocaleString()}`, ANCHO/2, ALTO/2 + 20);
+            ctx.fillStyle = C.WHITE; ctx.font = "20px Arial"; ctx.fillText("Toca o Espacio para volver al menú", ANCHO/2, ALTO/2 + 80);
+        }
+
+        ctx.restore(); 
+
+        const muteCol = AudioSys.muted ? C.ACCENT_RED : "#95A5A6";
+        drawRoundedRect(ANCHO - 60, 20, 40, 40, 10, muteCol);
+        ctx.fillStyle = C.WHITE; ctx.font = "20px Arial"; ctx.textAlign = "center";
+        ctx.fillText(AudioSys.muted ? "🔇" : "🔊", ANCHO - 40, 47);
+
+        window.gameLoopId = requestAnimationFrame(gameLoop);
+    }
+
+    window.gameLoopId = requestAnimationFrame(gameLoop);
+
+})(); 
+</script>
+</body>
+</html>
