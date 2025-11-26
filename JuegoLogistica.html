@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global Trade Master: Fixed Controls</title>
+    <title>Global Trade Master: Academic Edition</title>
     <style>
         body {
             margin: 0;
@@ -11,7 +11,7 @@
             overflow: hidden;
             background-color: #05050a;
             font-family: 'Segoe UI', Arial, sans-serif;
-            touch-action: none; /* CRITICO: Prevenir zoom/scroll en móvil */
+            touch-action: none; 
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
@@ -28,11 +28,12 @@
 
 <script>
 /**
- * GLOBAL TRADE MASTER WEB - FIX CONTROLS (4.2)
- * --------------------------------------------
- * - FIXED MENU BUTTONS: Hitboxes now match visual layout on mobile (vertical).
- * - AGGRESSIVE MOBILE SCALING: Zoomed in for portrait mode.
- * - LARGER HITBOXES: Better touch detection.
+ * GLOBAL TRADE MASTER WEB - ACADEMIC EDITION (5.0)
+ * ------------------------------------------------
+ * - CONTENIDO ACTUALIZADO: Basado en el documento "Transacciones Comerciales..." (Univ. Cartagena).
+ * - INCOTERMS 2020: Lógica estratégica EXW vs DDP.
+ * - SERVICIOS: 4 Modos del AGCS.
+ * - FINANZAS: Carta de Crédito vs Cobranza.
  */
 
 (function() { 
@@ -47,37 +48,26 @@
     let ALTO = window.innerHeight;
     let SCALE = 1; 
     const REF_WIDTH_DESKTOP = 1280; 
-    const REF_WIDTH_MOBILE = 550; // Referencia más pequeña para que todo se vea GRANDE en móvil
+    const REF_WIDTH_MOBILE = 550; 
 
     const onResize = () => {
         ANCHO = window.innerWidth;
         ALTO = window.innerHeight;
         canvas.width = ANCHO;
         canvas.height = ALTO;
-        
         const isPortrait = ALTO > ANCHO;
-        
-        if (ANCHO < 800 || isPortrait) {
-            // Modo Móvil/Vertical: Usamos una base de 550px para que los elementos sean grandes
-            SCALE = ANCHO / REF_WIDTH_MOBILE;
-        } else {
-            // Modo Escritorio: Usamos base 1280px estándar
-            SCALE = Math.min(ANCHO / REF_WIDTH_DESKTOP, 1.5);
-        }
+        if (ANCHO < 800 || isPortrait) SCALE = ANCHO / REF_WIDTH_MOBILE;
+        else SCALE = Math.min(ANCHO / REF_WIDTH_DESKTOP, 1.5);
     };
     window.addEventListener('resize', onResize);
     onResize(); 
 
-    // Helpers de escalado
     const s = (val) => val * SCALE; 
-    // Fuente escalada con tamaño mínimo de 14px para legibilidad
     const fs = (size) => `bold ${Math.max(14, size * SCALE)}px 'Segoe UI', Arial`; 
 
-    // --- 2. SISTEMA DE AUDIO ---
+    // --- 2. AUDIO ---
     const AudioSys = {
-        ctx: null, masterGain: null, buffers: {}, musicSource: null,
-        initialized: false, muted: false,
-
+        ctx: null, masterGain: null, buffers: {}, musicSource: null, initialized: false, muted: false,
         init: function() {
             if (this.initialized) return;
             const AC = window.AudioContext || window.webkitAudioContext;
@@ -85,26 +75,21 @@
             this.masterGain = this.ctx.createGain();
             this.masterGain.gain.value = 0.5; 
             this.masterGain.connect(this.ctx.destination);
-
             this.buffers.music = this.genMusicBuffer();
             this.buffers.win = this.genWinBuffer();
             this.buffers.lose = this.genLoseBuffer();
             this.buffers.powerup = this.genPowerUpBuffer();
-
             this.initialized = true;
             if(!this.muted) this.playMusic();
         },
-
         toggleMute: function() {
             this.muted = !this.muted;
             if (this.ctx) {
-                const target = this.muted ? 0 : 0.5;
-                this.masterGain.gain.linearRampToValueAtTime(target, this.ctx.currentTime + 0.1);
+                this.masterGain.gain.linearRampToValueAtTime(this.muted ? 0 : 0.5, this.ctx.currentTime + 0.1);
                 if (!this.muted && this.ctx.state === 'suspended') this.ctx.resume();
                 if (!this.muted && !this.musicSource) this.playMusic();
             }
         },
-
         genMusicBuffer: function() {
             const sr = this.ctx.sampleRate; const seconds = 16;
             const buffer = this.ctx.createBuffer(1, sr * seconds, sr);
@@ -112,45 +97,29 @@
             const notes = [261.63, 311.13, 349.23, 392.00, 466.16];
             for (let i = 0; i < sr * seconds; i++) {
                 let t = i / sr; let beat = Math.floor(t * 4);
-                let bassFreq = (Math.floor(beat / 4) % 2 === 0) ? 65.41 : 58.27;
-                let bass = Math.sin(2 * Math.PI * bassFreq * t) * 0.5 * (1 - ((t*4) % 1));
-                let noteIndex = (beat % 5 + Math.floor(beat/8)) % notes.length;
-                let note = notes[noteIndex];
-                let melody = Math.sin(2 * Math.PI * note * t) * 0.35 * Math.exp(-5 * ((t*4) % 1));
+                let bass = Math.sin(2 * Math.PI * ((Math.floor(beat/4)%2===0)?65.41:58.27) * t) * 0.5 * (1 - ((t*4)%1));
+                let melody = Math.sin(2 * Math.PI * notes[(beat%5 + Math.floor(beat/8))%notes.length] * t) * 0.35 * Math.exp(-5*((t*4)%1));
                 let hat = (i % Math.floor(sr/8) < 500) ? (Math.random() * 0.2 - 0.1) : 0;
-                data[i] = (bass + melody + hat);
+                data[i] = bass + melody + hat;
             }
             return buffer;
         },
         genWinBuffer: function() {
             const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.5, sr);
             const data = buffer.getChannelData(0);
-            for(let i=0; i < sr * 0.5; i++) {
-                let t = i / sr;
-                let val = Math.sin(2 * Math.PI * 880 * t) + 0.5 * Math.sin(2 * Math.PI * 1760 * t);
-                data[i] = val * 0.5 * (1 - t/0.5);
-            }
+            for(let i=0; i<sr*0.5; i++) data[i] = (Math.sin(2*Math.PI*880*(i/sr)) + 0.5*Math.sin(2*Math.PI*1760*(i/sr))) * 0.5 * (1-(i/sr)/0.5);
             return buffer;
         },
         genLoseBuffer: function() {
             const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.4, sr);
             const data = buffer.getChannelData(0);
-            for(let i=0; i < sr * 0.4; i++) {
-                let t = i / sr;
-                let val = (Math.sin(2 * Math.PI * 150 * t) > 0) ? 1.0 : -1.0;
-                data[i] = val * 0.3 * (1 - t/0.4);
-            }
+            for(let i=0; i<sr*0.4; i++) data[i] = ((Math.sin(2*Math.PI*150*(i/sr))>0)?1.0:-1.0) * 0.3 * (1-(i/sr)/0.4);
             return buffer;
         },
         genPowerUpBuffer: function() {
             const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.6, sr);
             const data = buffer.getChannelData(0);
-            for(let i=0; i < sr * 0.6; i++) {
-                let t = i / sr;
-                let freq = 400 + (t * 1000); 
-                let val = Math.sin(2 * Math.PI * freq * t);
-                data[i] = val * 0.3 * (1 - t/0.6);
-            }
+            for(let i=0; i<sr*0.6; i++) data[i] = Math.sin(2*Math.PI*(400+((i/sr)*1000))*(i/sr)) * 0.3 * (1-(i/sr)/0.6);
             return buffer;
         },
         playMusic: function() {
@@ -172,7 +141,7 @@
         }
     };
 
-    // --- 3. DATOS ---
+    // --- 3. BASE DE DATOS ACADÉMICA (ACTUALIZADA CON DOCUMENTO) ---
     const C = {
         SEA_TOP: [0, 100, 160], SEA_BOT: [10, 20, 40],
         CYBER_TOP: [20, 0, 40], CYBER_BOT: [5, 5, 10],
@@ -183,65 +152,54 @@
 
     const CONOCIMIENTO = {
         "bienes": {
-            "ok": [
-                {t:"INCOTERM DDP", d:"Vendedor asume todos los riesgos y costos hasta destino."},
-                {t:"CARTA DE CRÉDITO", d:"El cobro está garantizado por el banco contra documentos."},
-                {t:"CONVENCIÓN VIENA", d:"Marco jurídico neutral para contratos internacionales."}
+            "ok": [ // Aciertos: Conceptos correctos del documento
+                {t:"CONVENCIÓN VIENA (1980)", d:"Marco legal supranacional que actúa como manual de crisis ante incumplimientos o fuerza mayor."},
+                {t:"CARTA DE CRÉDITO", d:"Instrumento bancario irrevocable. El pago se gatilla contra documentos, no promesas."},
+                {t:"INCOTERM DDP", d:"'Entregado Derechos Pagados'. El vendedor asume logística y aduana destino. Máximo control."},
+                {t:"INCOTERM EXW", d:"'En Fábrica'. Mínima obligación del vendedor. El comprador asume todo el riesgo desde origen."},
+                {t:"COBRANZA DOCUMENTARIA", d:"Nivel intermedio de seguridad. Bancos actúan como custodios de los títulos de carga."},
+                {t:"ARBITRAJE INTERNACIONAL", d:"Mecanismo clave para evitar litigios costosos en tribunales extranjeros desconocidos."}
             ],
-            "fail": [
-                {t:"DEMURRAGE", d:"Multa naviera por no liberar el contenedor a tiempo."},
-                {t:"FUERZA MAYOR", d:"Evento imprevisible que deja el contrato en el limbo."},
-                {t:"ADUANA BLOQUEADA", d:"Falta de Certificado de Origen impide nacionalizar."}
+            "fail": [ // Riesgos: Problemas mencionados en el documento
+                {t:"CONFLICTO DE LEYES", d:"Colisión normativa entre jurisdicciones civiles y consuetudinarias sin un contrato robusto."},
+                {t:"RIESGO DE IMPAGO", d:"Enviar mercancía sin garantía financiera. El comprador recibe y no paga."},
+                {t:"FUERZA MAYOR", d:"Evento imprevisible. Sin cláusula específica, el contrato queda en el limbo jurídico."},
+                {t:"SOBRECOSTOS LOGÍSTICOS", d:"Error al elegir Incoterm. Mercancía abandonada en puerto por falta de documentos."},
+                {t:"DISCREPANCIA DE CALIDAD", d:"La mercancía recibida no coincide con la ofertada. Falta de inspección previa."}
             ]
         },
         "servicios": {
-            "ok": [
-                {t:"ACUERDO AGCS", d:"Reglas claras de la OMC para comercio de servicios."},
-                {t:"MODO 1: DIGITAL", d:"Servicio viaja por la red, nadie se mueve físicamente."},
-                {t:"PROPIEDAD INTELECTUAL", d:"Protección de marcas y patentes en el extranjero."}
+            "ok": [ // Aciertos: Modos de suministro AGCS y conceptos
+                {t:"ACUERDO AGCS (OMC)", d:"Marco multilateral que clasifica el comercio de servicios en 4 modos de suministro."},
+                {t:"MODO 1: TRANSFRONTERIZO", d:"El servicio cruza la frontera (digital), nadie se mueve físicamente."},
+                {t:"MODO 2: CONSUMO EXTERIOR", d:"El consumidor viaja al país del proveedor (ej. Turismo, Salud)."},
+                {t:"MODO 3: PRESENCIA COMERCIAL", d:"La empresa establece una filial u oficina en el país extranjero."},
+                {t:"MODO 4: PERSONAS FÍSICAS", d:"Movilidad de talento. Consultores viajan temporalmente a prestar el servicio."},
+                {t:"PROPIEDAD INTELECTUAL", d:"Gestión de intangibles y licencias. Clave en contratos de software y know-how."}
             ],
-            "fail": [
-                {t:"DOBLE TRIBUTACIÓN", d:"Pagas impuestos en dos países por el mismo ingreso."},
-                {t:"BRECHA DE DATOS", d:"Robo de información confidencial del cliente."},
-                {t:"NO HOMOLOGACIÓN", d:"Tu licencia profesional no es válida en el destino."}
+            "fail": [ // Riesgos en servicios
+                {t:"DOBLE TRIBUTACIÓN", d:"Ineficiencia fiscal. Se pagan impuestos por el mismo ingreso en dos países."},
+                {t:"NO HOMOLOGACIÓN", d:"Barrera técnica. Tu título profesional no es válido en el país destino."},
+                {t:"BRECHA DE DATOS", d:"Fallo de ciberseguridad en la transferencia de información confidencial."},
+                {t:"BARRERA MIGRATORIA", d:"Visas denegadas impiden el Modo 4 (movimiento de personas físicas)."},
+                {t:"AMBIGÜEDAD EN SLA", d:"Falta de definición clara de los 'entregables' en el contrato de servicios."}
             ]
         }
     };
 
     // --- VARIABLES DE ESTADO ---
-    let state = "MENU"; 
-    let mode = "bienes"; 
-    let player; 
-    let items = []; 
-    let powerups = []; 
-    let particles = []; 
-    let bgElements = []; 
-    let score = 0; 
-    let highScore = localStorage.getItem('gtm_highscore') || 0;
-    let health = 100; 
-    let cardInfo = null; 
-    let lastSpawnTime = 0;
+    let state = "MENU"; let mode = "bienes"; 
+    let player; let items = []; let powerups = []; let particles = []; let bgElements = []; 
+    let score = 0; let highScore = localStorage.getItem('gtm_highscore') || 0;
+    let health = 100; let cardInfo = null; let lastSpawnTime = 0;
     
-    // Game Juice
-    let shakeStrength = 0;
-    let damageFlash = 0;
-    let scoreScale = 1.0;
-    
-    // Ultimate Features
-    let combo = 0;
-    let comboTimer = 0; 
-    let slowMotionTimer = 0; 
-    let timeScale = 1.0; 
-    
-    // Difficulty
-    let difficultyLevel = 1;
-    let spawnRate = 800; 
-    let itemBaseSpeed = 5;
+    let shakeStrength = 0; let damageFlash = 0; let scoreScale = 1.0;
+    let combo = 0; let comboTimer = 0; let slowMotionTimer = 0; let timeScale = 1.0; 
+    let difficultyLevel = 1; let spawnRate = 800; let itemBaseSpeed = 5;
 
     // --- INPUTS RESPONSIVOS ---
     const keys = { ArrowLeft: false, ArrowRight: false };
-    let touchX = null; 
-    let isTouching = false; 
+    let touchX = null; let isTouching = false; 
 
     function tryInitAudio() {
         if (!AudioSys.initialized) AudioSys.init();
@@ -261,38 +219,20 @@
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    // CONTROL TÁCTIL MEJORADO
     const handleTouchStart = (e) => {
-        e.preventDefault(); 
-        tryInitAudio();
-        const t = e.touches[0];
-        checkUIClicks(t.clientX, t.clientY);
-        touchX = t.clientX;
-        isTouching = true;
+        e.preventDefault(); tryInitAudio();
+        const t = e.touches[0]; checkUIClicks(t.clientX, t.clientY);
+        touchX = t.clientX; isTouching = true;
     };
-    const handleTouchMove = (e) => { 
-        e.preventDefault(); 
-        touchX = e.touches[0].clientX; 
-    };
-    const handleTouchEnd = (e) => { 
-        e.preventDefault(); 
-        isTouching = false; 
-        touchX = null; 
-    };
+    const handleTouchMove = (e) => { e.preventDefault(); touchX = e.touches[0].clientX; };
+    const handleTouchEnd = (e) => { e.preventDefault(); isTouching = false; touchX = null; };
     
     const handleMouseDown = (e) => {
-        tryInitAudio();
-        checkUIClicks(e.clientX, e.clientY);
-        touchX = e.clientX;
-        isTouching = true;
+        tryInitAudio(); checkUIClicks(e.clientX, e.clientY);
+        touchX = e.clientX; isTouching = true;
     };
-    const handleMouseMove = (e) => {
-        if (isTouching) touchX = e.clientX;
-    }
-    const handleMouseUp = () => { 
-        isTouching = false; 
-        touchX = null; 
-    };
+    const handleMouseMove = (e) => { if (isTouching) touchX = e.clientX; }
+    const handleMouseUp = () => { isTouching = false; touchX = null; };
 
     window.addEventListener('touchstart', handleTouchStart, {passive: false});
     window.addEventListener('touchmove', handleTouchMove, {passive: false});
@@ -302,40 +242,27 @@
     window.addEventListener('mouseup', handleMouseUp);
 
     function checkUIClicks(x, y) {
-        // Mute (Top Right)
         if (x > ANCHO - s(100) && y < s(100)) { AudioSys.toggleMute(); return; }
 
         if (state === "MENU") {
-            const btnY = ALTO * 0.6;
-            const btnW = s(300);
-            const btnH = s(80);
-            const gap = s(40);
-
+            const btnY = ALTO * 0.6; const btnW = s(300); const btnH = s(80); const gap = s(40);
             if (ANCHO > 600) {
-                // Horizontal Layout (PC/Tablet)
                 if (y > btnY && y < btnY + btnH) {
                     if (x > ANCHO/2 - btnW - gap/2 && x < ANCHO/2 - gap/2) startGame("bienes");
                     if (x > ANCHO/2 + gap/2 && x < ANCHO/2 + btnW + gap/2) startGame("servicios");
                 }
             } else {
-                // Vertical Layout (Mobile) - CORREGIDO
                 const by2 = btnY + btnH + s(20);
-                // Chequear zona X (centrada)
                 if (x > ANCHO/2 - btnW/2 && x < ANCHO/2 + btnW/2) {
-                    // Botón Arriba (Bienes)
                     if (y > btnY && y < btnY + btnH) startGame("bienes");
-                    // Botón Abajo (Servicios)
                     if (y > by2 && y < by2 + btnH) startGame("servicios");
                 }
             }
         } else if (state === "PLAY") {
-            // Pause (Top Center) - Zona aumentada
             if (x > ANCHO/2 - s(80) && x < ANCHO/2 + s(80) && y < s(80)) state = "PAUSED";
         } else if (state === "PAUSED") {
             const btnW = s(300); const btnH = s(50);
-            // Resume
             if (x > ANCHO/2 - btnW/2 && x < ANCHO/2 + btnW/2 && y > ALTO/2 - s(60) && y < ALTO/2 - s(10)) state = "PLAY";
-            // Quit
             if (x > ANCHO/2 - btnW/2 && x < ANCHO/2 + btnW/2 && y > ALTO/2 + s(20) && y < ALTO/2 + s(70)) state = "MENU";
         } else if (state === "INFO" || state === "GAMEOVER") {
             handleInputConfirm();
@@ -352,13 +279,12 @@
         else if (state === "GAMEOVER") state = "MENU";
     }
 
-    // --- UTILS ---
+    // --- UTILS & ENTITIES ---
     function randomRange(min, max) { return Math.random() * (max - min) + min; }
     function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1) + min); }
     function drawRoundedRect(x, y, w, h, r, color) {
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
-        else ctx.rect(x,y,w,h); 
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x,y,w,h); 
         ctx.fillStyle = color; ctx.fill();
     }
     function drawGradient(topCol, botCol) {
@@ -368,31 +294,22 @@
         ctx.fillStyle = grad; ctx.fillRect(0, 0, ANCHO, ALTO);
     }
 
-    // --- GAME ENTITIES ---
     class Particle {
         constructor(x, y, color, isTrail) {
             this.x = x; this.y = y; this.color = color; this.isTrail = isTrail;
             this.size = randomInt(s(3), s(8)); 
-            this.life = isTrail ? 30 : 50; 
-            this.maxLife = this.life;
+            this.life = isTrail ? 30 : 50; this.maxLife = this.life;
             const spd = s(1);
             if (isTrail) { this.vx = randomRange(-spd*0.5, spd*0.5); this.vy = spd*2; } 
-            else { 
-                this.vx = randomRange(-spd*5, spd*5); 
-                this.vy = randomRange(-spd*5, spd*5); 
-                this.gravity = spd*0.2;
-            }
+            else { this.vx = randomRange(-spd*5, spd*5); this.vy = randomRange(-spd*5, spd*5); this.gravity = spd*0.2; }
         }
         update() { 
-            this.x += this.vx * timeScale; 
-            this.y += this.vy * timeScale; 
+            this.x += this.vx * timeScale; this.y += this.vy * timeScale; 
             if(!this.isTrail) this.vy += this.gravity * timeScale;
             this.life--; 
         }
         draw() {
-            ctx.save();
-            ctx.globalAlpha = this.life / this.maxLife;
-            ctx.fillStyle = this.color;
+            ctx.save(); ctx.globalAlpha = this.life / this.maxLife; ctx.fillStyle = this.color;
             if (this.isTrail) { ctx.beginPath(); ctx.arc(this.x, this.y, this.size/2, 0, Math.PI * 2); ctx.fill(); } 
             else { ctx.fillRect(this.x, this.y, this.size, this.size); }
             ctx.restore();
@@ -407,9 +324,7 @@
         update() { this.y -= s(2) * timeScale; this.life--; }
         draw() {
             ctx.save(); ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
-            ctx.fillStyle = this.color; 
-            ctx.font = fs(this.size); 
-            ctx.textAlign = "center";
+            ctx.fillStyle = this.color; ctx.font = fs(this.size); ctx.textAlign = "center";
             ctx.shadowColor = "black"; ctx.shadowBlur = 4;
             ctx.fillText(this.text, this.x, this.y); ctx.restore();
         }
@@ -427,10 +342,7 @@
             this.alpha = randomRange(0.1, 0.3 + (this.layer*0.1));
             this.text = Math.random() > 0.5 ? "1" : "0";
         }
-        update() { 
-            this.y += this.speed * timeScale; 
-            if (this.y > ALTO) this.reset(); 
-        }
+        update() { this.y += this.speed * timeScale; if (this.y > ALTO) this.reset(); }
         draw() {
             ctx.save(); ctx.globalAlpha = this.alpha;
             if (this.mode === 'bienes') {
@@ -448,31 +360,19 @@
     class PowerUp {
         constructor() {
             this.type = Math.random() > 0.5 ? 'shield' : 'slow';
-            this.x = randomInt(s(50), ANCHO - s(50));
-            this.y = -s(60);
-            this.speed = s(4);
-            this.w = s(50); this.h = s(50);
-            this.angle = 0;
+            this.x = randomInt(s(50), ANCHO - s(50)); this.y = -s(60);
+            this.speed = s(4); this.w = s(50); this.h = s(50); this.angle = 0;
         }
-        update() {
-            this.y += this.speed * timeScale;
-            this.angle += 0.05;
-        }
+        update() { this.y += this.speed * timeScale; this.angle += 0.05; }
         draw() {
             ctx.save(); ctx.translate(this.x, this.y);
-            ctx.shadowColor = this.type === 'shield' ? C.SHIELD : C.SLOW;
-            ctx.shadowBlur = 20;
+            ctx.shadowColor = this.type === 'shield' ? C.SHIELD : C.SLOW; ctx.shadowBlur = 20;
             ctx.fillStyle = this.type === 'shield' ? C.SHIELD : C.SLOW;
             ctx.translate(0, Math.sin(Date.now()*0.005)*5);
-            
             ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                ctx.lineTo(this.w/2 * Math.cos(this.angle + i * Math.PI / 3), this.w/2 * Math.sin(this.angle + i * Math.PI / 3));
-            }
+            for (let i = 0; i < 6; i++) ctx.lineTo(this.w/2 * Math.cos(this.angle + i * Math.PI / 3), this.w/2 * Math.sin(this.angle + i * Math.PI / 3));
             ctx.fill();
-            
-            ctx.shadowBlur = 0; ctx.fillStyle = "#000";
-            ctx.font = fs(20); ctx.textAlign = "center";
+            ctx.shadowBlur = 0; ctx.fillStyle = "#000"; ctx.font = fs(20); ctx.textAlign = "center";
             ctx.fillText(this.type === 'shield' ? "🛡️" : "⏳", 0, s(8));
             ctx.restore();
         }
@@ -481,12 +381,9 @@
 
     class Player {
         constructor(mode) {
-            this.mode = mode; 
-            this.w = s(80); this.h = s(100);
-            this.x = ANCHO / 2; this.y = ALTO - s(150); 
-            this.targetX = this.x;
-            this.angle = 0; this.floatTimer = 0; this.offsetY = 0;
-            this.hasShield = false;
+            this.mode = mode; this.w = s(80); this.h = s(100);
+            this.x = ANCHO / 2; this.y = ALTO - s(150); this.targetX = this.x;
+            this.angle = 0; this.floatTimer = 0; this.offsetY = 0; this.hasShield = false;
         }
         update() {
             let dir = 0;
@@ -499,23 +396,18 @@
             }
             
             this.targetX = Math.max(s(50), Math.min(ANCHO - s(50), this.targetX));
-            
-            const diff = this.targetX - this.x; 
-            this.x += diff * 0.15; 
-            
+            const diff = this.targetX - this.x; this.x += diff * 0.15; 
             this.angle += ((-diff * 0.05 * (Math.PI / 180)) - this.angle) * 0.1;
             this.floatTimer += 0.1; this.offsetY = Math.sin(this.floatTimer) * s(5);
         }
         draw() {
             ctx.save(); ctx.translate(this.x, this.y + this.offsetY); 
-            
             if (this.hasShield) {
                 ctx.save(); ctx.strokeStyle = C.SHIELD; ctx.lineWidth = s(3);
                 ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.01) * 0.2;
                 ctx.beginPath(); ctx.arc(0, 0, s(60), 0, Math.PI*2); ctx.stroke();
                 ctx.fillStyle = "rgba(0, 255, 255, 0.1)"; ctx.fill(); ctx.restore();
             }
-
             ctx.rotate(this.angle);
             const W = s(30); const H = s(40);
             if (this.mode === 'bienes') {
@@ -545,10 +437,7 @@
             this.x = randomInt(s(50), ANCHO - s(50)); this.y = -s(70); 
             this.speed = s(itemBaseSpeed) * speedMult;
         }
-        update() { 
-            this.y += this.speed * timeScale; 
-            this.x += Math.sin(Date.now() * 0.005) * s(1.5); 
-        }
+        update() { this.y += this.speed * timeScale; this.x += Math.sin(Date.now() * 0.005) * s(1.5); }
         draw() {
             ctx.save(); ctx.translate(this.x, this.y);
             ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(0, s(35), s(20), s(5), 0, 0, Math.PI*2); ctx.fill();
@@ -566,13 +455,11 @@
     }
 
     // --- LOGIC ---
-
     for(let i=0; i<30; i++) bgElements.push(new BackgroundElement('bienes', i%3));
 
     function startGame(selectedMode) {
         mode = selectedMode; state = "PLAY"; score = 0; health = 100;
-        player = new Player(mode); 
-        items = []; powerups = []; particles = []; 
+        player = new Player(mode); items = []; powerups = []; particles = []; 
         bgElements = [];
         for(let i=0; i<30; i++) bgElements.push(new BackgroundElement(mode, i%3));
         difficultyLevel = 1; spawnRate = 800; itemBaseSpeed = 5;
@@ -601,10 +488,7 @@
         if (score > highScore) { highScore = score; localStorage.setItem('gtm_highscore', highScore); }
     }
 
-    function activateSlowMotion() {
-        slowMotionTimer = 300; 
-        timeScale = 0.3;
-    }
+    function activateSlowMotion() { slowMotionTimer = 300; timeScale = 0.3; }
 
     function gameLoop(timestamp) {
         if (slowMotionTimer > 0) {
@@ -694,9 +578,7 @@
 
         // --- DRAWING ---
         ctx.save();
-        if (shakeStrength > 0) {
-            ctx.translate((Math.random() - 0.5) * shakeStrength, (Math.random() - 0.5) * shakeStrength);
-        }
+        if (shakeStrength > 0) ctx.translate((Math.random() - 0.5) * shakeStrength, (Math.random() - 0.5) * shakeStrength);
 
         const cols = mode === 'bienes' ? [C.SEA_TOP, C.SEA_BOT] : [C.CYBER_TOP, C.CYBER_BOT];
         drawGradient(cols[0], cols[1]);
@@ -706,14 +588,13 @@
             ctx.fillStyle = C.WHITE; ctx.font = fs(60); ctx.textAlign = "center";
             ctx.shadowColor = C.SHADOW; ctx.shadowBlur = 10;
             ctx.fillText("GLOBAL TRADE MASTER", ANCHO/2, ALTO*0.25);
-            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = fs(30); ctx.fillText("ULTIMATE EDITION", ANCHO/2, ALTO*0.32);
+            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = fs(30); ctx.fillText("ACADEMIC EDITION", ANCHO/2, ALTO*0.32);
             ctx.shadowBlur = 0;
             
             ctx.fillStyle = "#AAA"; ctx.font = fs(24);
             ctx.fillText(`🏆 RÉCORD: $${parseInt(highScore).toLocaleString()}`, ANCHO/2, ALTO*0.4);
 
             const btnY = ALTO * 0.6; const btnW = s(300); const btnH = s(80); const gap = s(40);
-            
             let bx1, bx2, by1, by2;
             if (ANCHO > 600) {
                  bx1 = ANCHO/2 - btnW - gap/2; by1 = btnY;
@@ -742,14 +623,12 @@
             
             if (timeScale < 1.0) {
                 const grad = ctx.createRadialGradient(ANCHO/2, ALTO/2, ALTO/4, ANCHO/2, ALTO/2, ALTO);
-                grad.addColorStop(0, "rgba(155, 89, 182, 0)");
-                grad.addColorStop(1, "rgba(155, 89, 182, 0.3)");
+                grad.addColorStop(0, "rgba(155, 89, 182, 0)"); grad.addColorStop(1, "rgba(155, 89, 182, 0.3)");
                 ctx.fillStyle = grad; ctx.fillRect(0,0,ANCHO,ALTO);
                 ctx.fillStyle = C.SLOW; ctx.font = fs(20); ctx.textAlign = "center";
                 ctx.fillText("⏳ TIEMPO RALENTIZADO", ANCHO/2, ALTO - s(100));
             }
 
-            // HUD
             ctx.fillStyle = C.WHITE; ctx.fillRect(0, 0, ANCHO, s(70));
             ctx.fillStyle = "#DDDDDD"; ctx.fillRect(0, s(68), ANCHO, 2);
             
@@ -759,8 +638,7 @@
 
             if (combo > 1) {
                 const cSize = s(30 + (comboTimer > 0 ? 10 : 0));
-                ctx.font = `bold ${cSize}px Arial`;
-                ctx.fillStyle = combo > 5 ? "#FF4500" : "#FFA500";
+                ctx.font = `bold ${cSize}px Arial`; ctx.fillStyle = combo > 5 ? "#FF4500" : "#FFA500";
                 ctx.textAlign = "left"; ctx.fillText(`🔥 ${combo}x`, s(250), s(45));
             }
 
@@ -779,23 +657,15 @@
 
             if (state === "INFO") {
                 ctx.fillStyle = "rgba(10, 15, 30, 0.9)"; ctx.fillRect(0, 0, ANCHO, ALTO);
-                const cw = Math.min(s(800), ANCHO - s(40)); 
-                // Ajustar altura tarjeta si el texto es largo o pantalla pequeña
-                const ch = s(450); 
+                const cw = Math.min(s(800), ANCHO - s(40)); const ch = s(450); 
                 const cx = (ANCHO - cw) / 2; const cy = (ALTO - ch) / 2;
-                
                 drawRoundedRect(cx, cy, cw, ch, s(20), C.WHITE);
                 const col = cardInfo.ok ? C.ACCENT_GREEN : C.ACCENT_RED;
                 drawRoundedRect(cx, cy, cw, s(80), s(20), col); ctx.fillRect(cx, cy+s(40), cw, s(40)); 
-                
                 ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = fs(30);
-                // Texto wrap para titulo
                 ctx.fillText(cardInfo.ok ? "¡CONOCIMIENTO!" : "¡RIESGO!", ANCHO/2, cy + s(50));
-                
                 ctx.fillStyle = C.TEXT_DARK; ctx.font = fs(35); ctx.fillText(cardInfo.t, ANCHO/2, cy + s(130));
                 ctx.fillStyle = "#50505A"; ctx.font = fs(24);
-                
-                // Word Wrap Manual
                 const words = cardInfo.d.split(" "); let line = ""; let ly = cy + s(190);
                 for(let n = 0; n < words.length; n++) {
                     const testLine = line + words[n] + " "; const metrics = ctx.measureText(testLine);
@@ -803,9 +673,7 @@
                     else { line = testLine; }
                 }
                 ctx.fillText(line, ANCHO/2, ly);
-                
-                ctx.fillStyle = col; ctx.font = fs(20); 
-                ctx.fillText("TOCA PARA CONTINUAR", ANCHO/2, cy + ch - s(40));
+                ctx.fillStyle = col; ctx.font = fs(20); ctx.fillText("TOCA PARA CONTINUAR", ANCHO/2, cy + ch - s(40));
             }
 
             if (state === "PAUSED") {
@@ -815,13 +683,9 @@
                 drawRoundedRect(pmX, pmY, pmW, pmH, s(20), C.WHITE);
                 ctx.fillStyle = C.TEXT_DARK; ctx.font = fs(40); ctx.textAlign = "center";
                 ctx.fillText("PAUSA", ANCHO/2, pmY + s(60));
-                
-                const bW = Math.min(s(300), pmW - 40);
-                const bH = s(50);
-                
+                const bW = Math.min(s(300), pmW - 40); const bH = s(50);
                 drawRoundedRect(ANCHO/2 - bW/2, ALTO/2 - s(30), bW, bH, s(10), C.ACCENT_GREEN);
                 ctx.fillStyle = C.WHITE; ctx.font = fs(24); ctx.fillText("CONTINUAR", ANCHO/2, ALTO/2 + s(5));
-                
                 drawRoundedRect(ANCHO/2 - bW/2, ALTO/2 + s(40), bW, bH, s(10), C.ACCENT_RED);
                 ctx.fillStyle = C.WHITE; ctx.fillText("SALIR", ANCHO/2, ALTO/2 + s(75));
             }
