@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global Trade Master: Ultimate Edition</title>
+    <title>Global Trade Master: Cross-Platform Edition</title>
     <style>
         body {
             margin: 0;
@@ -11,7 +11,7 @@
             overflow: hidden;
             background-color: #05050a;
             font-family: 'Segoe UI', Arial, sans-serif;
-            touch-action: none; /* Prevenir zoom en móvil */
+            touch-action: none; /* CRITICO: Prevenir zoom/scroll en móvil */
             user-select: none;
             -webkit-user-select: none;
         }
@@ -27,12 +27,11 @@
 
 <script>
 /**
- * GLOBAL TRADE MASTER WEB - ULTIMATE EDITION (3.0)
- * ------------------------------------------------
- * - COMBO SYSTEM (Multipliers)
- * - POWER-UPS (Shield, Slow Motion)
- * - 3-LAYER PARALLAX BACKGROUND
- * - ADVANCED PARTICLE EFFECTS
+ * GLOBAL TRADE MASTER WEB - CROSS-PLATFORM EDITION (4.0)
+ * ------------------------------------------------------
+ * - RESPONSIVE SCALING: Adapts to any screen size/DPR.
+ * - MOBILE CONTROLS: "Follow Finger" logic for smooth touch play.
+ * - ADAPTIVE UI: Fonts and buttons scale with screen width.
  */
 
 (function() { 
@@ -40,21 +39,34 @@
     // --- LIMPIEZA ---
     if (window.gameLoopId) cancelAnimationFrame(window.gameLoopId);
     
-    // --- 1. CONFIGURACIÓN ---
+    // --- 1. CONFIGURACIÓN & ESCALADO ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    
+    // Variables de Pantalla
     let ANCHO = window.innerWidth;
     let ALTO = window.innerHeight;
-    canvas.width = ANCHO;
-    canvas.height = ALTO;
+    let SCALE = 1; // Factor de escala global
+    const REF_WIDTH = 1280; // Resolución base de diseño
 
+    // Función de redimensionado inteligente
     const onResize = () => {
         ANCHO = window.innerWidth;
         ALTO = window.innerHeight;
         canvas.width = ANCHO;
         canvas.height = ALTO;
+        
+        // Calculamos escala basada en el ancho, pero limitando para pantallas ultra-wide o ultra-tall
+        // En móviles (portrait), usamos el ancho como referencia principal para que los elementos sean legibles
+        SCALE = Math.min(ANCHO / REF_WIDTH, 1.5); 
+        if (ANCHO < 600) SCALE = ANCHO / 800; // Ajuste para móviles vertical
     };
     window.addEventListener('resize', onResize);
+    onResize(); // Init
+
+    // Helpers de escalado
+    const s = (val) => val * SCALE; // Escalar valor
+    const fs = (size) => `bold ${Math.max(12, size * SCALE)}px 'Segoe UI', Arial`; // Fuente escalada
 
     // --- 2. SISTEMA DE AUDIO ---
     const AudioSys = {
@@ -72,7 +84,7 @@
             this.buffers.music = this.genMusicBuffer();
             this.buffers.win = this.genWinBuffer();
             this.buffers.lose = this.genLoseBuffer();
-            this.buffers.powerup = this.genPowerUpBuffer(); // Nuevo sonido
+            this.buffers.powerup = this.genPowerUpBuffer();
 
             this.initialized = true;
             if(!this.muted) this.playMusic();
@@ -105,7 +117,6 @@
             }
             return buffer;
         },
-
         genWinBuffer: function() {
             const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.5, sr);
             const data = buffer.getChannelData(0);
@@ -116,7 +127,6 @@
             }
             return buffer;
         },
-
         genLoseBuffer: function() {
             const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.4, sr);
             const data = buffer.getChannelData(0);
@@ -127,20 +137,17 @@
             }
             return buffer;
         },
-
         genPowerUpBuffer: function() {
             const sr = this.ctx.sampleRate; const buffer = this.ctx.createBuffer(1, sr * 0.6, sr);
             const data = buffer.getChannelData(0);
             for(let i=0; i < sr * 0.6; i++) {
                 let t = i / sr;
-                // Sonido ascendente mágico
                 let freq = 400 + (t * 1000); 
                 let val = Math.sin(2 * Math.PI * freq * t);
                 data[i] = val * 0.3 * (1 - t/0.6);
             }
             return buffer;
         },
-
         playMusic: function() {
             if (!this.ctx || this.muted) return;
             if (this.musicSource) this.musicSource.stop();
@@ -150,7 +157,6 @@
             this.musicSource.connect(this.masterGain);
             this.musicSource.start(0);
         },
-
         playSfx: function(type) {
             if (!this.ctx || this.muted || !this.buffers[type]) return;
             if (this.ctx.state === 'suspended') this.ctx.resume();
@@ -173,26 +179,26 @@
     const CONOCIMIENTO = {
         "bienes": {
             "ok": [
-                {t:"INCOTERM DDP", d:"Entrega máxima. Vendedor asume todos los riesgos y costos hasta destino."},
-                {t:"CARTA DE CRÉDITO", d:"Seguridad bancaria. El cobro está garantizado contra documentos conformes."},
-                {t:"CONVENCIÓN VIENA", d:"Marco jurídico neutral. Evita conflictos de leyes en contratos internacionales."}
+                {t:"INCOTERM DDP", d:"Vendedor asume todos los riesgos y costos hasta destino."},
+                {t:"CARTA DE CRÉDITO", d:"El cobro está garantizado por el banco contra documentos."},
+                {t:"CONVENCIÓN VIENA", d:"Marco jurídico neutral para contratos internacionales."}
             ],
             "fail": [
-                {t:"DEMURRAGE", d:"Costos extra. Multa naviera por no liberar el contenedor a tiempo."},
-                {t:"FUERZA MAYOR", d:"Evento imprevisible. Sin cláusula específica, el contrato queda en el limbo."},
-                {t:"ADUANA BLOQUEADA", d:"Falta de Certificado de Origen. La mercancía no puede nacionalizarse."}
+                {t:"DEMURRAGE", d:"Multa naviera por no liberar el contenedor a tiempo."},
+                {t:"FUERZA MAYOR", d:"Evento imprevisible que deja el contrato en el limbo."},
+                {t:"ADUANA BLOQUEADA", d:"Falta de Certificado de Origen impide nacionalizar."}
             ]
         },
         "servicios": {
             "ok": [
-                {t:"ACUERDO AGCS", d:"Marco de la OMC. Reglas claras para el comercio internacional de servicios."},
-                {t:"MODO 1: DIGITAL", d:"Suministro transfronterizo. El servicio viaja por la red, nadie se mueve."},
-                {t:"PROPIEDAD INTELECTUAL", d:"Protección de activos intangibles (Marcas/Patentes) en el extranjero."}
+                {t:"ACUERDO AGCS", d:"Reglas claras de la OMC para comercio de servicios."},
+                {t:"MODO 1: DIGITAL", d:"Servicio viaja por la red, nadie se mueve físicamente."},
+                {t:"PROPIEDAD INTELECTUAL", d:"Protección de marcas y patentes en el extranjero."}
             ],
             "fail": [
-                {t:"DOBLE TRIBUTACIÓN", d:"Ineficiencia fiscal. Pagas impuestos en dos países por el mismo ingreso."},
-                {t:"BRECHA DE DATOS", d:"Fallo de ciberseguridad. Robo de información confidencial del cliente."},
-                {t:"NO HOMOLOGACIÓN", d:"Barrera técnica. Tu licencia profesional no es válida en el país destino."}
+                {t:"DOBLE TRIBUTACIÓN", d:"Pagas impuestos en dos países por el mismo ingreso."},
+                {t:"BRECHA DE DATOS", d:"Robo de información confidencial del cliente."},
+                {t:"NO HOMOLOGACIÓN", d:"Tu licencia profesional no es válida en el destino."}
             ]
         }
     };
@@ -202,9 +208,9 @@
     let mode = "bienes"; 
     let player; 
     let items = []; 
-    let powerups = []; // NUEVO
+    let powerups = []; 
     let particles = []; 
-    let bgElements = []; // Ahora tiene capas
+    let bgElements = []; 
     let score = 0; 
     let highScore = localStorage.getItem('gtm_highscore') || 0;
     let health = 100; 
@@ -218,18 +224,19 @@
     
     // Ultimate Features
     let combo = 0;
-    let comboTimer = 0; // Visual pop for combo
-    let slowMotionTimer = 0; // Ticks
-    let timeScale = 1.0; // 1.0 = normal, 0.3 = slow
+    let comboTimer = 0; 
+    let slowMotionTimer = 0; 
+    let timeScale = 1.0; 
     
     // Difficulty
     let difficultyLevel = 1;
     let spawnRate = 800; 
     let itemBaseSpeed = 5;
 
-    // --- INPUTS ---
+    // --- INPUTS RESPONSIVOS ---
     const keys = { ArrowLeft: false, ArrowRight: false };
     let touchX = null; 
+    let isTouching = false; // Nuevo: saber si está arrastrando
 
     function tryInitAudio() {
         if (!AudioSys.initialized) AudioSys.init();
@@ -249,41 +256,66 @@
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
+    // CONTROL TÁCTIL MEJORADO: FOLLOW FINGER
     const handleTouchStart = (e) => {
+        e.preventDefault(); // IMPORTANTE: Prevenir scroll
         tryInitAudio();
         const t = e.touches[0];
         checkUIClicks(t.clientX, t.clientY);
         touchX = t.clientX;
+        isTouching = true;
     };
-    const handleTouchMove = (e) => { touchX = e.touches[0].clientX; };
-    const handleTouchEnd = () => { touchX = null; };
+    const handleTouchMove = (e) => { 
+        e.preventDefault(); 
+        touchX = e.touches[0].clientX; 
+    };
+    const handleTouchEnd = (e) => { 
+        e.preventDefault(); 
+        isTouching = false; 
+        touchX = null; 
+    };
+    
+    // Mouse Support (para PC sin teclado)
     const handleMouseDown = (e) => {
         tryInitAudio();
         checkUIClicks(e.clientX, e.clientY);
         touchX = e.clientX;
+        isTouching = true;
     };
-    const handleMouseUp = () => { touchX = null; };
+    const handleMouseMove = (e) => {
+        if (isTouching) touchX = e.clientX;
+    }
+    const handleMouseUp = () => { 
+        isTouching = false; 
+        touchX = null; 
+    };
 
-    window.addEventListener('touchstart', handleTouchStart);
-    window.addEventListener('touchmove', handleTouchMove);
-    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchstart', handleTouchStart, {passive: false});
+    window.addEventListener('touchmove', handleTouchMove, {passive: false});
+    window.addEventListener('touchend', handleTouchEnd, {passive: false});
     window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
     function checkUIClicks(x, y) {
-        if (x > ANCHO - 60 && y < 60) { AudioSys.toggleMute(); return; }
+        // Mute (Top Right)
+        if (x > ANCHO - s(80) && y < s(80)) { AudioSys.toggleMute(); return; }
 
         if (state === "MENU") {
-            const btnY = ALTO * 0.6; const btnH = 80;
+            const btnY = ALTO * 0.6; const btnH = s(80);
             if (y > btnY && y < btnY + btnH) {
-                if (x > ANCHO/2 - 320 && x < ANCHO/2 - 20) startGame("bienes");
-                if (x > ANCHO/2 + 20 && x < ANCHO/2 + 320) startGame("servicios");
+                if (x > ANCHO/2 - s(320) && x < ANCHO/2 - s(20)) startGame("bienes");
+                if (x > ANCHO/2 + s(20) && x < ANCHO/2 + s(320)) startGame("servicios");
             }
         } else if (state === "PLAY") {
-            if (x > ANCHO/2 - 60 && x < ANCHO/2 + 60 && y < 60) state = "PAUSED";
+            // Pause (Top Center)
+            if (x > ANCHO/2 - s(60) && x < ANCHO/2 + s(60) && y < s(60)) state = "PAUSED";
         } else if (state === "PAUSED") {
-            if (x > ANCHO/2 - 150 && x < ANCHO/2 + 150 && y > ALTO/2 - 60 && y < ALTO/2 - 10) state = "PLAY";
-            if (x > ANCHO/2 - 150 && x < ANCHO/2 + 150 && y > ALTO/2 + 20 && y < ALTO/2 + 70) state = "MENU";
+            const btnW = s(300); const btnH = s(50);
+            // Resume
+            if (x > ANCHO/2 - btnW/2 && x < ANCHO/2 + btnW/2 && y > ALTO/2 - s(60) && y < ALTO/2 - s(10)) state = "PLAY";
+            // Quit
+            if (x > ANCHO/2 - btnW/2 && x < ANCHO/2 + btnW/2 && y > ALTO/2 + s(20) && y < ALTO/2 + s(70)) state = "MENU";
         } else if (state === "INFO" || state === "GAMEOVER") {
             handleInputConfirm();
         }
@@ -319,19 +351,19 @@
     class Particle {
         constructor(x, y, color, isTrail) {
             this.x = x; this.y = y; this.color = color; this.isTrail = isTrail;
-            this.size = randomInt(3, 8); 
+            this.size = randomInt(s(3), s(8)); 
             this.life = isTrail ? 30 : 50; 
             this.maxLife = this.life;
-            if (isTrail) { this.vx = randomRange(-0.5, 0.5); this.vy = 2; } 
+            const spd = s(1);
+            if (isTrail) { this.vx = randomRange(-spd*0.5, spd*0.5); this.vy = spd*2; } 
             else { 
-                // Explosion effect
-                this.vx = randomRange(-5, 5); 
-                this.vy = randomRange(-5, 5); 
-                this.gravity = 0.2;
+                this.vx = randomRange(-spd*5, spd*5); 
+                this.vy = randomRange(-spd*5, spd*5); 
+                this.gravity = spd*0.2;
             }
         }
         update() { 
-            this.x += this.vx * timeScale; // Affected by slow motion
+            this.x += this.vx * timeScale; 
             this.y += this.vy * timeScale; 
             if(!this.isTrail) this.vy += this.gravity * timeScale;
             this.life--; 
@@ -351,29 +383,26 @@
             this.x = x; this.y = y; this.text = text; this.color = color;
             this.life = 60; this.maxLife = 60; this.size = size;
         }
-        update() { this.y -= 2 * timeScale; this.life--; }
+        update() { this.y -= s(2) * timeScale; this.life--; }
         draw() {
             ctx.save(); ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
-            ctx.fillStyle = this.color; ctx.font = `bold ${this.size}px 'Segoe UI', Arial`; ctx.textAlign = "center";
+            ctx.fillStyle = this.color; 
+            ctx.font = fs(this.size); 
+            ctx.textAlign = "center";
             ctx.shadowColor = "black"; ctx.shadowBlur = 4;
             ctx.fillText(this.text, this.x, this.y); ctx.restore();
         }
     }
 
-    // Parallax Background
     class BackgroundElement {
         constructor(mode, layer) { 
-            this.mode = mode; 
-            this.layer = layer; // 0=far (slow), 1=mid, 2=close (fast)
-            this.reset(); 
-            this.y = randomInt(0, ALTO); 
+            this.mode = mode; this.layer = layer; this.reset(); this.y = randomInt(0, ALTO); 
         }
         reset() {
             this.x = randomInt(0, ANCHO); this.y = -50;
-            // Capas de velocidad
-            const baseSpeed = (this.layer + 1) * 0.5; 
-            this.speed = randomRange(baseSpeed, baseSpeed + 0.5); 
-            this.size = randomInt(10 + (this.layer*10), 30 + (this.layer*20));
+            const baseSpeed = s((this.layer + 1) * 0.5); 
+            this.speed = randomRange(baseSpeed, baseSpeed + s(0.5)); 
+            this.size = randomInt(s(10 + (this.layer*10)), s(30 + (this.layer*20)));
             this.alpha = randomRange(0.1, 0.3 + (this.layer*0.1));
             this.text = Math.random() > 0.5 ? "1" : "0";
         }
@@ -388,21 +417,20 @@
                 ctx.ellipse(this.x, this.y, this.size, this.size/2, 0, 0, Math.PI*2); ctx.fill();
             } else {
                 ctx.fillStyle = this.layer === 2 ? "#00FFC8" : "#005544"; 
-                ctx.font = `${14 + (this.layer*4)}px monospace`; 
+                ctx.font = `${s(14 + (this.layer*4))}px monospace`; 
                 ctx.fillText(this.text, this.x, this.y);
             }
             ctx.restore();
         }
     }
 
-    // NUEVO: PowerUps
     class PowerUp {
         constructor() {
             this.type = Math.random() > 0.5 ? 'shield' : 'slow';
-            this.x = randomInt(50, ANCHO - 50);
-            this.y = -60;
-            this.speed = 4;
-            this.w = 50; this.h = 50;
+            this.x = randomInt(s(50), ANCHO - s(50));
+            this.y = -s(60);
+            this.speed = s(4);
+            this.w = s(50); this.h = s(50);
             this.angle = 0;
         }
         update() {
@@ -411,87 +439,89 @@
         }
         draw() {
             ctx.save(); ctx.translate(this.x, this.y);
-            // Glow
             ctx.shadowColor = this.type === 'shield' ? C.SHIELD : C.SLOW;
             ctx.shadowBlur = 20;
-            // Draw Icon
             ctx.fillStyle = this.type === 'shield' ? C.SHIELD : C.SLOW;
+            ctx.translate(0, Math.sin(Date.now()*0.005)*5);
             
-            // Animación de flotación
-            const float = Math.sin(Date.now()*0.005)*5;
-            ctx.translate(0, float);
-            
-            // Hexagon shape
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
-                ctx.lineTo(25 * Math.cos(this.angle + i * Math.PI / 3), 25 * Math.sin(this.angle + i * Math.PI / 3));
+                ctx.lineTo(this.w/2 * Math.cos(this.angle + i * Math.PI / 3), this.w/2 * Math.sin(this.angle + i * Math.PI / 3));
             }
             ctx.fill();
             
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = "#000";
-            ctx.font = "20px Arial"; ctx.textAlign = "center";
-            ctx.fillText(this.type === 'shield' ? "🛡️" : "⏳", 0, 8);
+            ctx.shadowBlur = 0; ctx.fillStyle = "#000";
+            ctx.font = fs(20); ctx.textAlign = "center";
+            ctx.fillText(this.type === 'shield' ? "🛡️" : "⏳", 0, s(8));
             ctx.restore();
         }
-        getRect() { return {x: this.x-25, y: this.y-25, w: 50, h: 50}; }
+        getRect() { return {x: this.x-this.w/2, y: this.y-this.h/2, w: this.w, h: this.h}; }
     }
 
     class Player {
         constructor(mode) {
-            this.mode = mode; this.w = 80; this.h = 100;
-            this.x = ANCHO / 2; this.y = ALTO - 150; this.targetX = this.x;
+            this.mode = mode; 
+            this.w = s(80); this.h = s(100);
+            this.x = ANCHO / 2; this.y = ALTO - s(150); 
+            this.targetX = this.x;
             this.angle = 0; this.floatTimer = 0; this.offsetY = 0;
-            
-            // Status effects
             this.hasShield = false;
         }
         update() {
+            // Teclado
             let dir = 0;
             if (keys.ArrowLeft) dir = -1; if (keys.ArrowRight) dir = 1;
-            if (touchX !== null) {
-                if (touchX < ANCHO/2) dir = -1; else dir = 1;
-                if (touchX > ANCHO/2 - 50 && touchX < ANCHO/2 + 50 && state === "PLAY") dir = 0;
+            
+            // Movimiento híbrido:
+            // Si hay teclado, usamos velocidad constante.
+            // Si hay touch, usamos posición absoluta (más preciso en móvil).
+            
+            if (dir !== 0) {
+                this.targetX += dir * s(12);
+            } else if (isTouching && touchX !== null) {
+                // FOLLOW FINGER MODE
+                // Si estamos en pausa (centro arriba), no mover
+                if (!(touchX > ANCHO/2 - s(60) && touchX < ANCHO/2 + s(60) && state === "PLAY" && false)) {
+                     // Interpolamos targetX hacia touchX
+                     this.targetX = touchX;
+                }
             }
             
-            // Velocidad del jugador NO afectada por slow motion
-            this.targetX += dir * 12; 
-            this.targetX = Math.max(50, Math.min(ANCHO - 50, this.targetX));
+            this.targetX = Math.max(s(50), Math.min(ANCHO - s(50), this.targetX));
+            
+            // Suavizado
             const diff = this.targetX - this.x; 
-            this.x += diff * 0.2; 
+            this.x += diff * 0.15; 
             
             this.angle += ((-diff * 0.05 * (Math.PI / 180)) - this.angle) * 0.1;
-            this.floatTimer += 0.1; this.offsetY = Math.sin(this.floatTimer) * 5;
+            this.floatTimer += 0.1; this.offsetY = Math.sin(this.floatTimer) * s(5);
         }
         draw() {
             ctx.save(); ctx.translate(this.x, this.y + this.offsetY); 
             
-            // Shield Effect
             if (this.hasShield) {
-                ctx.save();
-                ctx.strokeStyle = C.SHIELD;
-                ctx.lineWidth = 3;
+                ctx.save(); ctx.strokeStyle = C.SHIELD; ctx.lineWidth = s(3);
                 ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.01) * 0.2;
-                ctx.beginPath(); ctx.arc(0, 0, 60, 0, Math.PI*2); ctx.stroke();
-                ctx.fillStyle = "rgba(0, 255, 255, 0.1)"; ctx.fill();
-                ctx.restore();
+                ctx.beginPath(); ctx.arc(0, 0, s(60), 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = "rgba(0, 255, 255, 0.1)"; ctx.fill(); ctx.restore();
             }
 
             ctx.rotate(this.angle);
+            const W = s(30); const H = s(40);
             if (this.mode === 'bienes') {
                 ctx.fillStyle = C.WHITE; ctx.beginPath();
-                ctx.moveTo(-30, 0); ctx.lineTo(30, 0); ctx.lineTo(20, 40); ctx.lineTo(-20, 40); ctx.fill();
-                ctx.fillStyle = "#3498DB"; ctx.fillRect(-25, 30, 50, 5);
+                ctx.moveTo(-W, 0); ctx.lineTo(W, 0); ctx.lineTo(W*0.66, H); ctx.lineTo(-W*0.66, H); ctx.fill();
+                ctx.fillStyle = "#3498DB"; ctx.fillRect(-W*0.8, H*0.75, W*1.6, s(5));
+                const boxW = s(14); const boxH = s(25);
                 [C.ACCENT_RED, C.ACCENT_GOLD, C.ACCENT_GREEN].forEach((c, i) => {
-                    ctx.fillStyle = c; ctx.fillRect(-25 + (i*18), -25, 14, 25);
-                    ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fillRect(-25 + (i*18) + 2, -23, 10, 21);
+                    ctx.fillStyle = c; ctx.fillRect(-s(25) + (i*s(18)), -s(25), boxW, boxH);
                 });
             } else {
-                drawRoundedRect(-25, -20, 50, 40, 10, C.ACCENT_BLUE);
-                ctx.strokeStyle = C.WHITE; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -10, 15, 0, Math.PI*2); ctx.stroke();
-                ctx.fillStyle = C.WHITE; ctx.beginPath(); ctx.arc(0, -10, 12, 0, Math.PI*2); ctx.fill();
-                ctx.strokeStyle = C.ACCENT_BLUE; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(0, -10, 6, -Math.PI/2 - 0.5, -Math.PI/2 + 0.5); ctx.stroke();
+                drawRoundedRect(-s(25), -s(20), s(50), s(40), s(10), C.ACCENT_BLUE);
+                ctx.strokeStyle = C.WHITE; ctx.lineWidth = s(3); ctx.beginPath(); ctx.arc(0, -s(10), s(15), 0, Math.PI*2); ctx.stroke();
+                ctx.fillStyle = C.WHITE; ctx.beginPath(); ctx.arc(0, -s(10), s(12), 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = C.ACCENT_BLUE; ctx.lineWidth = s(2);
+                ctx.beginPath(); ctx.arc(0, -s(10), s(6), -Math.PI/2 - 0.5, -Math.PI/2 + 0.5); ctx.stroke();
             }
             ctx.restore();
         }
@@ -501,24 +531,24 @@
     class Item {
         constructor(mode, speedMult) {
             this.mode = mode; this.isGood = Math.random() > 0.4;
-            this.w = 60; this.h = 60; 
-            this.x = randomInt(50, ANCHO - 50); this.y = -70; 
-            this.speed = itemBaseSpeed * speedMult;
+            this.w = s(60); this.h = s(60); 
+            this.x = randomInt(s(50), ANCHO - s(50)); this.y = -s(70); 
+            this.speed = s(itemBaseSpeed) * speedMult;
         }
         update() { 
-            this.y += this.speed * timeScale; // Affected by slow motion
-            this.x += Math.sin(Date.now() * 0.005) * 1.5; 
+            this.y += this.speed * timeScale; 
+            this.x += Math.sin(Date.now() * 0.005) * s(1.5); 
         }
         draw() {
             ctx.save(); ctx.translate(this.x, this.y);
-            ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(0, 35, 20, 5, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse(0, s(35), s(20), s(5), 0, 0, Math.PI*2); ctx.fill();
             if (this.isGood) {
-                drawRoundedRect(-20, -25, 40, 50, 5, "#ECF0F1");
-                ctx.fillStyle = C.ACCENT_GREEN; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = C.WHITE; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("$", 0, 7);
+                drawRoundedRect(-s(20), -s(25), s(40), s(50), s(5), "#ECF0F1");
+                ctx.fillStyle = C.ACCENT_GREEN; ctx.beginPath(); ctx.arc(0, 0, s(15), 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = C.WHITE; ctx.font = fs(20); ctx.textAlign = "center"; ctx.fillText("$", 0, s(7));
             } else {
-                ctx.fillStyle = C.ACCENT_RED; ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(30, 25); ctx.lineTo(-30, 25); ctx.fill();
-                ctx.fillStyle = C.WHITE; ctx.font = "bold 20px Arial"; ctx.textAlign = "center"; ctx.fillText("!", 0, 15);
+                ctx.fillStyle = C.ACCENT_RED; ctx.beginPath(); ctx.moveTo(0, -s(30)); ctx.lineTo(s(30), s(25)); ctx.lineTo(-s(30), s(25)); ctx.fill();
+                ctx.fillStyle = C.WHITE; ctx.font = fs(20); ctx.textAlign = "center"; ctx.fillText("!", 0, s(15));
             }
             ctx.restore();
         }
@@ -527,7 +557,6 @@
 
     // --- LOGIC ---
 
-    // Initial background setup
     for(let i=0; i<30; i++) bgElements.push(new BackgroundElement('bienes', i%3));
 
     function startGame(selectedMode) {
@@ -536,10 +565,8 @@
         items = []; powerups = []; particles = []; 
         bgElements = [];
         for(let i=0; i<30; i++) bgElements.push(new BackgroundElement(mode, i%3));
-        
         difficultyLevel = 1; spawnRate = 800; itemBaseSpeed = 5;
         combo = 0; comboTimer = 0; slowMotionTimer = 0; timeScale = 1.0;
-        
         tryInitAudio();
     }
 
@@ -565,14 +592,11 @@
     }
 
     function activateSlowMotion() {
-        slowMotionTimer = 300; // 5 seconds at 60fps
+        slowMotionTimer = 300; 
         timeScale = 0.3;
     }
 
     function gameLoop(timestamp) {
-        // --- LOGIC ---
-        
-        // Slow Motion Logic
         if (slowMotionTimer > 0) {
             slowMotionTimer--;
             if (slowMotionTimer <= 0) timeScale = 1.0;
@@ -584,80 +608,60 @@
             player.update();
             updateDifficulty();
 
-            // Spawn Items
             if (timestamp - lastSpawnTime > spawnRate / timeScale) { 
                 items.push(new Item(mode, 1 + (difficultyLevel * 0.05))); 
-                // Chance to spawn powerup (5%)
                 if (Math.random() < 0.05) powerups.push(new PowerUp());
                 lastSpawnTime = timestamp; 
             }
             
-            // Trail
             if (Math.random() > 0.6) {
                 const col = mode === 'bienes' ? C.WHITE : C.ACCENT_BLUE;
-                particles.push(new Particle(player.x, player.y + 35, col, true));
+                particles.push(new Particle(player.x, player.y + s(35), col, true));
             }
 
-            // PowerUps Collision
             for (let i = powerups.length - 1; i >= 0; i--) {
-                let p = powerups[i];
-                p.update();
+                let p = powerups[i]; p.update();
                 if (checkCollision(player.getRect(), p.getRect())) {
                     if (p.type === 'shield') {
                         player.hasShield = true;
-                        particles.push(new FloatingText(player.x, player.y - 80, "¡ESCUDO!", C.SHIELD));
+                        particles.push(new FloatingText(player.x, player.y - s(80), "¡ESCUDO!", C.SHIELD));
                     } else {
                         activateSlowMotion();
-                        particles.push(new FloatingText(player.x, player.y - 80, "¡SLOW MOTION!", C.SLOW));
+                        particles.push(new FloatingText(player.x, player.y - s(80), "¡SLOW MOTION!", C.SLOW));
                     }
-                    AudioSys.playSfx('powerup');
-                    powerups.splice(i, 1);
-                } else if (p.y > ALTO) {
-                    powerups.splice(i, 1);
-                }
+                    AudioSys.playSfx('powerup'); powerups.splice(i, 1);
+                } else if (p.y > ALTO) powerups.splice(i, 1);
             }
 
-            // Items Collision
             for (let i = items.length - 1; i >= 0; i--) {
                 let item = items[i]; item.update();
                 if (checkCollision(player.getRect(), item.getRect())) {
-                    
                     if (item.isGood) {
-                        // GOOD HIT
-                        combo++;
-                        comboTimer = 20;
+                        combo++; comboTimer = 20;
                         let multiplier = 1 + (combo * 0.1);
                         let pts = Math.floor(2000 * multiplier);
-                        
-                        score += pts; 
-                        scoreScale = 1.5;
-                        particles.push(new FloatingText(player.x, player.y - 50, `+$${pts.toLocaleString()}`, C.ACCENT_GOLD));
-                        if(combo > 1) particles.push(new FloatingText(player.x, player.y - 80, `${combo}x COMBO`, "#FFA500", 20));
-
+                        score += pts; scoreScale = 1.5;
+                        particles.push(new FloatingText(player.x, player.y - s(50), `+$${pts.toLocaleString()}`, C.ACCENT_GOLD));
+                        if(combo > 1) particles.push(new FloatingText(player.x, player.y - s(80), `${combo}x COMBO`, "#FFA500", 20));
                         for(let k=0; k<15; k++) particles.push(new Particle(item.x, item.y, C.ACCENT_GOLD, false));
                         AudioSys.playSfx('win');
                         
-                        // Show info only sometimes to keep flow
                         const dbKey = "ok";
                         const dataList = CONOCIMIENTO[mode][dbKey];
                         const data = dataList[Math.floor(Math.random() * dataList.length)];
                         cardInfo = { t: data.t, d: data.d, ok: true };
+                        // En móvil a veces es molesto parar a cada rato. Haremos que INFO sea menos intrusivo o solo en hit?
+                        // Por ahora igual:
                         state = "INFO";
-
                     } else {
-                        // BAD HIT
                         if (player.hasShield) {
                             player.hasShield = false;
-                            particles.push(new FloatingText(player.x, player.y - 50, "¡BLOQUEADO!", C.SHIELD));
-                            AudioSys.playSfx('powerup'); // Shield break sound
+                            particles.push(new FloatingText(player.x, player.y - s(50), "¡BLOQUEADO!", C.SHIELD));
+                            AudioSys.playSfx('powerup'); 
                         } else {
-                            health -= 25; 
-                            combo = 0; // Reset combo
-                            triggerShake(15); 
-                            triggerDamageFlash(); 
+                            health -= 25; combo = 0; triggerShake(15); triggerDamageFlash(); 
                             for(let k=0; k<20; k++) particles.push(new Particle(item.x, item.y, C.ACCENT_RED, false));
                             AudioSys.playSfx('lose');
-
                             const dbKey = "fail";
                             const dataList = CONOCIMIENTO[mode][dbKey];
                             const data = dataList[Math.floor(Math.random() * dataList.length)];
@@ -666,11 +670,7 @@
                         }
                     }
                     items.splice(i, 1); 
-                    
-                    if (health <= 0) {
-                        state = "GAMEOVER";
-                        saveHighScore();
-                    }
+                    if (health <= 0) { state = "GAMEOVER"; saveHighScore(); }
                     continue; 
                 }
                 if (item.y > ALTO) items.splice(i, 1);
@@ -679,7 +679,6 @@
         
         particles.forEach((p, i) => { p.update(); if (p.life <= 0) particles.splice(i, 1); });
         
-        // Decay effects
         if (shakeStrength > 0) shakeStrength *= 0.9;
         if (damageFlash > 0) damageFlash -= 0.05;
         if (scoreScale > 1.0) scoreScale -= 0.03;
@@ -687,7 +686,6 @@
 
         // --- DRAWING ---
         ctx.save();
-        
         if (shakeStrength > 0) {
             ctx.translate((Math.random() - 0.5) * shakeStrength, (Math.random() - 0.5) * shakeStrength);
         }
@@ -697,20 +695,31 @@
         bgElements.forEach(b => b.draw());
 
         if (state === "MENU") {
-            ctx.fillStyle = C.WHITE; ctx.font = "bold 60px 'Segoe UI', Arial"; ctx.textAlign = "center";
+            ctx.fillStyle = C.WHITE; ctx.font = fs(60); ctx.textAlign = "center";
             ctx.shadowColor = C.SHADOW; ctx.shadowBlur = 10;
-            ctx.fillText("GLOBAL TRADE MASTER", ANCHO/2, 150);
-            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = "30px Arial"; ctx.fillText("ULTIMATE EDITION", ANCHO/2, 190);
+            ctx.fillText("GLOBAL TRADE MASTER", ANCHO/2, ALTO*0.25);
+            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = fs(30); ctx.fillText("ULTIMATE EDITION", ANCHO/2, ALTO*0.32);
             ctx.shadowBlur = 0;
             
-            ctx.fillStyle = "#AAA"; ctx.font = "24px Arial";
-            ctx.fillText(`🏆 RÉCORD: $${parseInt(highScore).toLocaleString()}`, ANCHO/2, 250);
+            ctx.fillStyle = "#AAA"; ctx.font = fs(24);
+            ctx.fillText(`🏆 RÉCORD: $${parseInt(highScore).toLocaleString()}`, ANCHO/2, ALTO*0.4);
 
-            const btnY = ALTO * 0.6; const btnW = 300; const btnH = 80;
-            drawRoundedRect(ANCHO/2 - 320, btnY, btnW, btnH, 15, C.ACCENT_BLUE);
-            ctx.fillStyle = C.WHITE; ctx.font = "bold 30px Arial"; ctx.fillText("BIENES", ANCHO/2 - 170, btnY + 50);
-            drawRoundedRect(ANCHO/2 + 20, btnY, btnW, btnH, 15, C.ACCENT_GREEN);
-            ctx.fillStyle = C.WHITE; ctx.fillText("SERVICIOS", ANCHO/2 + 170, btnY + 50);
+            const btnY = ALTO * 0.6; const btnW = s(300); const btnH = s(80); const gap = s(40);
+            
+            // Botones responsivos (verticales en movil si es muy estrecho, horizontales en PC)
+            let bx1, bx2, by1, by2;
+            if (ANCHO > 600) {
+                 bx1 = ANCHO/2 - btnW - gap/2; by1 = btnY;
+                 bx2 = ANCHO/2 + gap/2; by2 = btnY;
+            } else {
+                 bx1 = ANCHO/2 - btnW/2; by1 = btnY;
+                 bx2 = ANCHO/2 - btnW/2; by2 = btnY + btnH + s(20);
+            }
+
+            drawRoundedRect(bx1, by1, btnW, btnH, s(15), C.ACCENT_BLUE);
+            ctx.fillStyle = C.WHITE; ctx.font = fs(30); ctx.fillText("BIENES", bx1 + btnW/2, by1 + btnH*0.6);
+            drawRoundedRect(bx2, by2, btnW, btnH, s(15), C.ACCENT_GREEN);
+            ctx.fillStyle = C.WHITE; ctx.fillText("SERVICIOS", bx2 + btnW/2, by2 + btnH*0.6);
             
         } 
         else if (state === "PLAY" || state === "INFO" || state === "PAUSED") {
@@ -724,98 +733,106 @@
                 ctx.fillRect(0, 0, ANCHO, ALTO);
             }
             
-            // Slow Motion Overlay (Vignette)
             if (timeScale < 1.0) {
                 const grad = ctx.createRadialGradient(ANCHO/2, ALTO/2, ALTO/4, ANCHO/2, ALTO/2, ALTO);
                 grad.addColorStop(0, "rgba(155, 89, 182, 0)");
                 grad.addColorStop(1, "rgba(155, 89, 182, 0.3)");
-                ctx.fillStyle = grad;
-                ctx.fillRect(0,0,ANCHO,ALTO);
-                
-                ctx.fillStyle = C.SLOW; ctx.font = "bold 20px Arial"; ctx.textAlign = "center";
-                ctx.fillText("⏳ TIEMPO RALENTIZADO", ANCHO/2, ALTO - 100);
+                ctx.fillStyle = grad; ctx.fillRect(0,0,ANCHO,ALTO);
+                ctx.fillStyle = C.SLOW; ctx.font = fs(20); ctx.textAlign = "center";
+                ctx.fillText("⏳ TIEMPO RALENTIZADO", ANCHO/2, ALTO - s(100));
             }
 
             // HUD
-            ctx.fillStyle = C.WHITE; ctx.fillRect(0, 0, ANCHO, 70);
-            ctx.fillStyle = "#DDDDDD"; ctx.fillRect(0, 68, ANCHO, 2);
+            ctx.fillStyle = C.WHITE; ctx.fillRect(0, 0, ANCHO, s(70));
+            ctx.fillStyle = "#DDDDDD"; ctx.fillRect(0, s(68), ANCHO, 2);
             
-            ctx.save();
-            ctx.translate(30, 45);
-            ctx.scale(scoreScale, scoreScale);
-            ctx.textAlign = "left"; ctx.font = "bold 40px 'Segoe UI', Arial"; ctx.fillStyle = C.ACCENT_GOLD;
-            ctx.fillText(`$${score.toLocaleString()}`, 0, 0);
-            ctx.restore();
+            ctx.save(); ctx.translate(s(30), s(45)); ctx.scale(scoreScale, scoreScale);
+            ctx.textAlign = "left"; ctx.font = fs(40); ctx.fillStyle = C.ACCENT_GOLD;
+            ctx.fillText(`$${score.toLocaleString()}`, 0, 0); ctx.restore();
 
-            // Combo Counter (Fire Effect)
             if (combo > 1) {
-                const cSize = 30 + (comboTimer > 0 ? 10 : 0);
+                const cSize = s(30 + (comboTimer > 0 ? 10 : 0));
                 ctx.font = `bold ${cSize}px Arial`;
                 ctx.fillStyle = combo > 5 ? "#FF4500" : "#FFA500";
-                ctx.textAlign = "left";
-                ctx.fillText(`🔥 ${combo}x`, 250, 45);
+                ctx.textAlign = "left"; ctx.fillText(`🔥 ${combo}x`, s(250), s(45));
             }
 
-            const barW = 300; 
-            ctx.fillStyle = "#E6E6E6"; drawRoundedRect(ANCHO - barW - 30, 20, barW, 30, 10, "#E6E6E6");
-            if (health > 0) drawRoundedRect(ANCHO - barW - 30, 20, (health/100)*barW, 30, 10, C.ACCENT_GREEN);
+            const barW = Math.min(s(300), ANCHO * 0.3); 
+            ctx.fillStyle = "#E6E6E6"; drawRoundedRect(ANCHO - barW - s(30), s(20), barW, s(30), s(10), "#E6E6E6");
+            if (health > 0) drawRoundedRect(ANCHO - barW - s(30), s(20), (health/100)*barW, s(30), s(10), C.ACCENT_GREEN);
             
-            ctx.fillStyle = "#95A5A6"; ctx.font = "14px Arial"; ctx.textAlign = "right";
-            ctx.fillText(`NIVEL ${difficultyLevel}`, ANCHO - 340, 40);
+            ctx.fillStyle = "#95A5A6"; ctx.font = fs(14); ctx.textAlign = "right";
+            ctx.fillText(`NIVEL ${difficultyLevel}`, ANCHO - barW - s(40), s(40));
 
-            const btnW = 120; const btnH = 40; const btnX = ANCHO/2 - btnW/2; const btnY = 15;
-            drawRoundedRect(btnX, btnY, btnW, btnH, 10, "#34495E");
-            ctx.fillStyle = C.WHITE; ctx.font = "bold 20px Arial"; ctx.textAlign = "center";
-            ctx.fillText("PAUSA", ANCHO/2, btnY + 28);
+            const btnW = s(120); const btnH = s(40); 
+            const btnX = ANCHO/2 - btnW/2; const btnY = s(15);
+            drawRoundedRect(btnX, btnY, btnW, btnH, s(10), "#34495E");
+            ctx.fillStyle = C.WHITE; ctx.font = fs(20); ctx.textAlign = "center";
+            ctx.fillText("PAUSA", ANCHO/2, btnY + btnH*0.7);
 
             if (state === "INFO") {
-                ctx.fillStyle = "rgba(10, 15, 30, 0.85)"; ctx.fillRect(0, 0, ANCHO, ALTO);
-                const cw = Math.min(800, ANCHO - 40); const ch = 450; const cx = (ANCHO - cw) / 2; const cy = (ALTO - ch) / 2;
-                drawRoundedRect(cx, cy, cw, ch, 20, C.WHITE);
+                ctx.fillStyle = "rgba(10, 15, 30, 0.9)"; ctx.fillRect(0, 0, ANCHO, ALTO);
+                const cw = Math.min(s(800), ANCHO - s(40)); 
+                // Ajustar altura tarjeta si el texto es largo o pantalla pequeña
+                const ch = s(450); 
+                const cx = (ANCHO - cw) / 2; const cy = (ALTO - ch) / 2;
+                
+                drawRoundedRect(cx, cy, cw, ch, s(20), C.WHITE);
                 const col = cardInfo.ok ? C.ACCENT_GREEN : C.ACCENT_RED;
-                drawRoundedRect(cx, cy, cw, 80, 20, col); ctx.fillRect(cx, cy+40, cw, 40); 
+                drawRoundedRect(cx, cy, cw, s(80), s(20), col); ctx.fillRect(cx, cy+s(40), cw, s(40)); 
                 
-                ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = "bold 30px Arial";
-                ctx.fillText(cardInfo.ok ? "¡CONOCIMIENTO ADQUIRIDO!" : "¡RIESGO OPERATIVO!", ANCHO/2, cy + 50);
+                ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = fs(30);
+                // Texto wrap para titulo
+                ctx.fillText(cardInfo.ok ? "¡CONOCIMIENTO!" : "¡RIESGO!", ANCHO/2, cy + s(50));
                 
-                ctx.fillStyle = C.TEXT_DARK; ctx.font = "bold 35px Arial"; ctx.fillText(cardInfo.t, ANCHO/2, cy + 130);
-                ctx.fillStyle = "#50505A"; ctx.font = "24px Arial";
-                const words = cardInfo.d.split(" "); let line = ""; let ly = cy + 190;
+                ctx.fillStyle = C.TEXT_DARK; ctx.font = fs(35); ctx.fillText(cardInfo.t, ANCHO/2, cy + s(130));
+                ctx.fillStyle = "#50505A"; ctx.font = fs(24);
+                
+                // Word Wrap Manual
+                const words = cardInfo.d.split(" "); let line = ""; let ly = cy + s(190);
                 for(let n = 0; n < words.length; n++) {
                     const testLine = line + words[n] + " "; const metrics = ctx.measureText(testLine);
-                    if (metrics.width > cw - 80 && n > 0) { ctx.fillText(line, ANCHO/2, ly); line = words[n] + " "; ly += 35; } 
+                    if (metrics.width > cw - s(80) && n > 0) { ctx.fillText(line, ANCHO/2, ly); line = words[n] + " "; ly += s(35); } 
                     else { line = testLine; }
                 }
                 ctx.fillText(line, ANCHO/2, ly);
-                ctx.fillStyle = col; ctx.font = "bold 20px Arial"; ctx.fillText("TOCA PARA CONTINUAR", ANCHO/2, cy + ch - 40);
+                
+                ctx.fillStyle = col; ctx.font = fs(20); 
+                ctx.fillText("TOCA PARA CONTINUAR", ANCHO/2, cy + ch - s(40));
             }
 
             if (state === "PAUSED") {
                 ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0,0,ANCHO, ALTO);
-                const pmW = 400; const pmH = 300; const pmX = (ANCHO-pmW)/2; const pmY = (ALTO-pmH)/2;
-                drawRoundedRect(pmX, pmY, pmW, pmH, 20, C.WHITE);
-                ctx.fillStyle = C.TEXT_DARK; ctx.font = "bold 40px Arial"; ctx.textAlign = "center";
-                ctx.fillText("JUEGO PAUSADO", ANCHO/2, pmY + 60);
-                drawRoundedRect(ANCHO/2 - 150, ALTO/2 - 60, 300, 50, 10, C.ACCENT_GREEN);
-                ctx.fillStyle = C.WHITE; ctx.font = "bold 24px Arial"; ctx.fillText("CONTINUAR", ANCHO/2, ALTO/2 - 27);
-                drawRoundedRect(ANCHO/2 - 150, ALTO/2 + 20, 300, 50, 10, C.ACCENT_RED);
-                ctx.fillStyle = C.WHITE; ctx.fillText("SALIR AL MENÚ", ANCHO/2, ALTO/2 + 53);
+                const pmW = Math.min(s(400), ANCHO-40); const pmH = s(300); 
+                const pmX = (ANCHO-pmW)/2; const pmY = (ALTO-pmH)/2;
+                drawRoundedRect(pmX, pmY, pmW, pmH, s(20), C.WHITE);
+                ctx.fillStyle = C.TEXT_DARK; ctx.font = fs(40); ctx.textAlign = "center";
+                ctx.fillText("PAUSA", ANCHO/2, pmY + s(60));
+                
+                const bW = Math.min(s(300), pmW - 40);
+                const bH = s(50);
+                
+                drawRoundedRect(ANCHO/2 - bW/2, ALTO/2 - s(30), bW, bH, s(10), C.ACCENT_GREEN);
+                ctx.fillStyle = C.WHITE; ctx.font = fs(24); ctx.fillText("CONTINUAR", ANCHO/2, ALTO/2 + s(5));
+                
+                drawRoundedRect(ANCHO/2 - bW/2, ALTO/2 + s(40), bW, bH, s(10), C.ACCENT_RED);
+                ctx.fillStyle = C.WHITE; ctx.fillText("SALIR", ANCHO/2, ALTO/2 + s(75));
             }
         }
         else if (state === "GAMEOVER") {
             ctx.fillStyle = "rgba(0,0,0,0.9)"; ctx.fillRect(0,0, ANCHO, ALTO);
-            ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = "bold 60px Arial";
-            ctx.fillText("FIN DE PARTIDA", ANCHO/2, ALTO/2 - 50);
-            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = "40px Arial"; ctx.fillText(`Total: $${score.toLocaleString()}`, ANCHO/2, ALTO/2 + 20);
-            ctx.fillStyle = C.WHITE; ctx.font = "20px Arial"; ctx.fillText("Toca o Espacio para volver al menú", ANCHO/2, ALTO/2 + 80);
+            ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = fs(60);
+            ctx.fillText("FIN DE PARTIDA", ANCHO/2, ALTO/2 - s(50));
+            ctx.fillStyle = C.ACCENT_GOLD; ctx.font = fs(40); ctx.fillText(`Total: $${score.toLocaleString()}`, ANCHO/2, ALTO/2 + s(20));
+            ctx.fillStyle = C.WHITE; ctx.font = fs(20); ctx.fillText("Toca para volver al menú", ANCHO/2, ALTO/2 + s(80));
         }
 
         ctx.restore(); 
 
         const muteCol = AudioSys.muted ? C.ACCENT_RED : "#95A5A6";
-        drawRoundedRect(ANCHO - 60, 20, 40, 40, 10, muteCol);
-        ctx.fillStyle = C.WHITE; ctx.font = "20px Arial"; ctx.textAlign = "center";
-        ctx.fillText(AudioSys.muted ? "🔇" : "🔊", ANCHO - 40, 47);
+        drawRoundedRect(ANCHO - s(60), s(20), s(40), s(40), s(10), muteCol);
+        ctx.fillStyle = C.WHITE; ctx.font = fs(20); ctx.textAlign = "center";
+        ctx.fillText(AudioSys.muted ? "🔇" : "🔊", ANCHO - s(40), s(47));
 
         window.gameLoopId = requestAnimationFrame(gameLoop);
     }
