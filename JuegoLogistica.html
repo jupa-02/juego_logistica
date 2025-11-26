@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global Trade Master: Mobile Optimized</title>
+    <title>Global Trade Master: Fixed Controls</title>
     <style>
         body {
             margin: 0;
@@ -28,11 +28,11 @@
 
 <script>
 /**
- * GLOBAL TRADE MASTER WEB - MOBILE OPTIMIZED (4.1)
- * ------------------------------------------------
+ * GLOBAL TRADE MASTER WEB - FIX CONTROLS (4.2)
+ * --------------------------------------------
+ * - FIXED MENU BUTTONS: Hitboxes now match visual layout on mobile (vertical).
  * - AGGRESSIVE MOBILE SCALING: Zoomed in for portrait mode.
  * - LARGER HITBOXES: Better touch detection.
- * - MINIMUM FONT SIZES: Text is always readable.
  */
 
 (function() { 
@@ -302,15 +302,31 @@
     window.addEventListener('mouseup', handleMouseUp);
 
     function checkUIClicks(x, y) {
-        // Mute (Top Right) - Zona aumentada
+        // Mute (Top Right)
         if (x > ANCHO - s(100) && y < s(100)) { AudioSys.toggleMute(); return; }
 
         if (state === "MENU") {
-            const btnY = ALTO * 0.6; const btnH = s(80);
-            if (y > btnY && y < btnY + btnH) {
-                // Zona aumentada para botones de menú
-                if (x > ANCHO/2 - s(320) && x < ANCHO/2 - s(10)) startGame("bienes");
-                if (x > ANCHO/2 + s(10) && x < ANCHO/2 + s(320)) startGame("servicios");
+            const btnY = ALTO * 0.6;
+            const btnW = s(300);
+            const btnH = s(80);
+            const gap = s(40);
+
+            if (ANCHO > 600) {
+                // Horizontal Layout (PC/Tablet)
+                if (y > btnY && y < btnY + btnH) {
+                    if (x > ANCHO/2 - btnW - gap/2 && x < ANCHO/2 - gap/2) startGame("bienes");
+                    if (x > ANCHO/2 + gap/2 && x < ANCHO/2 + btnW + gap/2) startGame("servicios");
+                }
+            } else {
+                // Vertical Layout (Mobile) - CORREGIDO
+                const by2 = btnY + btnH + s(20);
+                // Chequear zona X (centrada)
+                if (x > ANCHO/2 - btnW/2 && x < ANCHO/2 + btnW/2) {
+                    // Botón Arriba (Bienes)
+                    if (y > btnY && y < btnY + btnH) startGame("bienes");
+                    // Botón Abajo (Servicios)
+                    if (y > by2 && y < by2 + btnH) startGame("servicios");
+                }
             }
         } else if (state === "PLAY") {
             // Pause (Top Center) - Zona aumentada
@@ -764,6 +780,7 @@
             if (state === "INFO") {
                 ctx.fillStyle = "rgba(10, 15, 30, 0.9)"; ctx.fillRect(0, 0, ANCHO, ALTO);
                 const cw = Math.min(s(800), ANCHO - s(40)); 
+                // Ajustar altura tarjeta si el texto es largo o pantalla pequeña
                 const ch = s(450); 
                 const cx = (ANCHO - cw) / 2; const cy = (ALTO - ch) / 2;
                 
@@ -772,11 +789,13 @@
                 drawRoundedRect(cx, cy, cw, s(80), s(20), col); ctx.fillRect(cx, cy+s(40), cw, s(40)); 
                 
                 ctx.textAlign = "center"; ctx.fillStyle = C.WHITE; ctx.font = fs(30);
+                // Texto wrap para titulo
                 ctx.fillText(cardInfo.ok ? "¡CONOCIMIENTO!" : "¡RIESGO!", ANCHO/2, cy + s(50));
                 
                 ctx.fillStyle = C.TEXT_DARK; ctx.font = fs(35); ctx.fillText(cardInfo.t, ANCHO/2, cy + s(130));
                 ctx.fillStyle = "#50505A"; ctx.font = fs(24);
                 
+                // Word Wrap Manual
                 const words = cardInfo.d.split(" "); let line = ""; let ly = cy + s(190);
                 for(let n = 0; n < words.length; n++) {
                     const testLine = line + words[n] + " "; const metrics = ctx.measureText(testLine);
